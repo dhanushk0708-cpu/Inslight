@@ -1,19 +1,31 @@
 # Python
+venv/
 backend/venv/
-backend/__pycache__/
+.venv/
+__pycache__/
 *.pyc
 
-# Node / Next.js
+# Node
+node_modules/
 frontend/node_modules/
+
+# Next.js
+.next/
 frontend/.next/
 
-# Environment variables
+# Build
+dist/
+build/
+
+# Environment
+.env
+.env.*
 backend/.env
 frontend/.env.local
 
 # VS Code
 .vscode/
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
