@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'DASH.AI — AI BI Co-Pilot',
-  description: 'Voice-first AI Business Intelligence dashboards',
+  title: 'INSLIGHT — AI Business Intelligence Platform',
+  description: 'Enterprise-grade AI-Powered Business Intelligence, Predictive Analytics & Automated Reporting',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

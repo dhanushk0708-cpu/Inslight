@@ -1,0 +1,8 @@
+# INSLIGHT — Final Project Summary
+
+**INSLIGHT** is a full-stack AI-Powered Business Intelligence Platform developed as a final-year BCA AI & ML project across four structured engineering phases:
+
+- **Phase 1 (Secure Foundation & AI Intelligence):** Modular FastAPI + Next.js architecture, JWT authentication, bcrypt password hashing, per-user DuckDB dataset isolation, 2-layer Business Context Guard, SQLGlot AST SQL validator, and natural-language analytics.
+- **Phase 2 (Voice Assistant & Reporting Automation):** Web Speech API STT (`en-IN`, `hi-IN`, `kn-IN`) and TTS narration, multi-page ReportLab PDF and multi-sheet openpyxl Excel generators with `₹` Indian currency formatting and matplotlib charts, Gmail OAuth2 integration with Fernet-encrypted tokens, and background scheduled reports.
+- **Phase 3 (Advanced AI Business Intelligence):** Tool-orchestrated AI BI Agent with Strategic Performance & Opportunity/Risk engine (hypothesis & evidence validation), Root Cause Analysis, ML Time-Series Forecasting (Random Forest, Ridge, Holt's Exponential Smoothing, Moving Average), Multi-Algorithmic Anomaly Detection (Z-Score, IQR, Isolation Forest), Business Alerts, Data Quality Assistant, Comparative Analytics, AI Dashboard Studio, and Multi-Dataset Relational Joins.
+- **Phase 4 (Production Engineering, Deployment & Finalization):** Persistent Notification Center, append-only Audit Logging with secret redaction, RBAC (`admin` / `analyst`), Request-ID structured logging & unified error handling, sliding-window rate limiting, `/health/live` & `/health/ready` probes, Alembic database migrations & backup CLI, GitHub Actions CI pipeline, and an AI PowerPoint (`.pptx`) Presentation Generator.

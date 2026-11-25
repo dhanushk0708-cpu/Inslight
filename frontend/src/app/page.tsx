@@ -1,1082 +1,1517 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   STYLES
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-const injectStyles = () => {
-  if (document.getElementById("dashai-styles")) return;
-  const el = document.createElement("style");
-  el.id = "dashai-styles";
-  el.textContent = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg-primary:#06080d;--bg-secondary:#0a0d14;--bg-chat:#080b12;
-  --bg-card:#111520;--bg-card-hover:#161b28;--bg-elevated:#1a1f2e;
-  --bg-glass:rgba(17,21,32,.72);
-  --bg-msg-user:linear-gradient(135deg,#6366f1,#4f46e5);
-  --bg-msg-ai:#12162080;
-  --border:rgba(255,255,255,.06);--border-chat:rgba(255,255,255,.04);
-  --border-active:rgba(99,102,241,.4);
-  --text-primary:#f1f3f9;--text-secondary:#8b93a7;--text-muted:#505872;--text-dim:#3a4058;
-  --accent:#6366f1;--accent-light:#818cf8;--accent-dark:#4f46e5;
-  --accent-glow:rgba(99,102,241,.12);--accent-glow-strong:rgba(99,102,241,.25);
-  --green:#10b981;--green-glow:rgba(16,185,129,.12);
-  --red:#ef4444;--red-glow:rgba(239,68,68,.12);
-  --amber:#f59e0b;--amber-glow:rgba(245,158,11,.12);
-  --blue:#3b82f6;--cyan:#06b6d4;--purple:#8b5cf6;
-  --gradient-accent:linear-gradient(135deg,#6366f1,#8b5cf6,#a78bfa);
-  --gradient-card:linear-gradient(145deg,rgba(17,21,32,.9),rgba(26,31,46,.6));
-  --gradient-glow:radial-gradient(ellipse at 50% 0%,rgba(99,102,241,.1) 0%,transparent 60%);
-  --radius:16px;--radius-sm:10px;--radius-xs:6px;--radius-full:9999px;
-  --shadow-sm:0 2px 8px rgba(0,0,0,.3);--shadow-md:0 8px 32px rgba(0,0,0,.4);
-  --shadow-glow:0 0 40px rgba(99,102,241,.15);
-  --transition:all .25s cubic-bezier(.4,0,.2,1);
-  --transition-spring:all .4s cubic-bezier(.34,1.56,.64,1);
-  --chat-width:420px;
-}
-body{
-  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-  background:var(--bg-primary);color:var(--text-primary);
-  line-height:1.6;overflow:hidden;
-  -webkit-font-smoothing:antialiased;
-}
-
-/* ━━━ LAYOUT ━━━ */
-.app{display:flex;height:100vh;overflow:hidden;position:relative}
-.app::before{
-  content:'';position:fixed;inset:0;
-  background:radial-gradient(circle at 25% 15%,rgba(99,102,241,.04) 0%,transparent 50%),
-             radial-gradient(circle at 75% 85%,rgba(139,92,246,.03) 0%,transparent 50%);
-  pointer-events:none;z-index:0;
-}
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
-   LEFT: CHAT PANEL
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-.chat-panel{
-  width:var(--chat-width);min-width:var(--chat-width);
-  background:linear-gradient(180deg,#080b12,#0a0e17,#080c14);
-  border-right:1px solid var(--border-chat);
-  display:flex;flex-direction:column;
-  position:relative;z-index:10;overflow:hidden;
-}
-.chat-panel::before{
-  content:'';position:absolute;top:-100px;left:-60px;
-  width:250px;height:250px;
-  background:radial-gradient(circle,rgba(99,102,241,.06) 0%,transparent 70%);
-  pointer-events:none;animation:chat-glow 10s ease-in-out infinite alternate;
-}
-@keyframes chat-glow{
-  0%{transform:translate(0,0);opacity:.5}
-  50%{transform:translate(30px,80px);opacity:.8}
-  100%{transform:translate(-20px,160px);opacity:.4}
-}
-.chat-panel::after{
-  content:'';position:absolute;top:0;right:0;width:1px;height:100%;
-  background:linear-gradient(180deg,transparent,rgba(99,102,241,.12),rgba(139,92,246,.15),rgba(99,102,241,.12),transparent);
-  z-index:5;
-}
-
-/* Chat Header */
-.chat-header{
-  padding:20px;border-bottom:1px solid var(--border-chat);
-  position:relative;z-index:2;flex-shrink:0;
-}
-.chat-brand{display:flex;align-items:center;gap:14px;margin-bottom:14px}
-.chat-logo{
-  width:42px;height:42px;border-radius:14px;
-  background:var(--gradient-accent);
-  display:flex;align-items:center;justify-content:center;
-  font-size:20px;flex-shrink:0;
-  box-shadow:0 4px 16px rgba(99,102,241,.35),0 0 0 1px rgba(255,255,255,.08) inset;
-  position:relative;
-}
-.chat-logo::after{
-  content:'';position:absolute;inset:0;border-radius:14px;
-  background:linear-gradient(135deg,rgba(255,255,255,.15) 0%,transparent 50%);
-}
-.chat-brand-text{display:flex;flex-direction:column;gap:1px}
-.chat-brand-name{
-  font-size:20px;font-weight:900;letter-spacing:-.5px;
-  background:linear-gradient(135deg,#fff 30%,#818cf8);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-}
-.chat-brand-sub{font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim)}
-
-/* Status bar */
-.chat-status{
-  display:flex;align-items:center;gap:8px;
-  padding:8px 12px;background:rgba(255,255,255,.02);
-  border:1px solid var(--border-chat);border-radius:var(--radius-sm);
-}
-.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.status-dot.on{background:var(--green);box-shadow:0 0 8px rgba(16,185,129,.4);animation:pulse-dot 2s infinite}
-.status-dot.off{background:var(--red)}
-@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
-.chat-status-text{font-size:11px;color:var(--text-muted);flex:1}
-.chat-status-badge{
-  font-size:9px;padding:2px 8px;border-radius:var(--radius-full);
-  background:var(--accent-glow);color:var(--accent-light);
-  font-weight:700;border:1px solid rgba(99,102,241,.15);
-}
-
-/* Upload button in header */
-.chat-upload-btn{
-  margin-top:10px;width:100%;padding:9px;
-  background:rgba(255,255,255,.02);
-  border:1px dashed var(--border);border-radius:var(--radius-sm);
-  color:var(--text-muted);font-size:12px;font-weight:600;
-  cursor:pointer;transition:var(--transition);
-  font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;
-}
-.chat-upload-btn:hover{
-  border-color:var(--accent);color:var(--accent-light);
-  background:var(--accent-glow);
-}
-
-/* Chat Messages Area */
-.chat-messages{
-  flex:1;overflow-y:auto;padding:16px;
-  display:flex;flex-direction:column;gap:12px;
-  position:relative;z-index:2;
-  scroll-behavior:smooth;
-}
-
-/* Message bubbles */
-.msg{display:flex;gap:10px;max-width:100%;animation:msgIn .3s ease-out}
-@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-.msg.user{flex-direction:row-reverse}
-.msg.ai{flex-direction:row}
-
-.msg-avatar{
-  width:30px;height:30px;border-radius:10px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:14px;flex-shrink:0;
-}
-.msg.user .msg-avatar{background:var(--gradient-accent);box-shadow:0 2px 8px rgba(99,102,241,.3)}
-.msg.ai .msg-avatar{background:rgba(255,255,255,.04);border:1px solid var(--border)}
-
-.msg-bubble{
-  padding:12px 16px;border-radius:16px;
-  font-size:13.5px;line-height:1.6;
-  max-width:calc(100% - 50px);word-wrap:break-word;
-}
-.msg.user .msg-bubble{
-  background:var(--bg-msg-user);color:#fff;
-  border-bottom-right-radius:4px;
-  box-shadow:0 4px 16px rgba(99,102,241,.25);
-}
-.msg.ai .msg-bubble{
-  background:var(--bg-msg-ai);color:var(--text-primary);
-  border:1px solid var(--border);
-  border-bottom-left-radius:4px;
-}
-
-.msg-time{font-size:9px;color:var(--text-dim);margin-top:4px;padding:0 4px}
-.msg.user .msg-time{text-align:right}
-
-/* Typing indicator */
-.typing{display:flex;gap:4px;padding:12px 16px;align-items:center}
-.typing span{
-  width:6px;height:6px;border-radius:50%;background:var(--text-muted);
-  animation:typeDot 1.2s infinite ease-in-out;
-}
-.typing span:nth-child(2){animation-delay:.2s}
-.typing span:nth-child(3){animation-delay:.4s}
-@keyframes typeDot{0%,60%,100%{transform:translateY(0);opacity:.3}30%{transform:translateY(-6px);opacity:1}}
-
-/* Quick actions in chat */
-.chat-actions{
-  padding:10px 16px;border-top:1px solid var(--border-chat);
-  display:flex;gap:6px;flex-shrink:0;position:relative;z-index:2;
-  overflow-x:auto;
-}
-.chat-action-btn{
-  padding:7px 14px;border-radius:var(--radius-full);
-  background:rgba(255,255,255,.03);border:1px solid var(--border);
-  color:var(--text-muted);font-size:11.5px;font-weight:600;
-  cursor:pointer;transition:var(--transition);
-  font-family:inherit;white-space:nowrap;
-  display:flex;align-items:center;gap:5px;
-}
-.chat-action-btn:hover{
-  border-color:var(--accent);color:var(--accent-light);
-  background:var(--accent-glow);transform:translateY(-1px);
-}
-.chat-action-btn.active{
-  background:var(--accent-glow-strong);border-color:var(--border-active);
-  color:var(--accent-light);
-}
-
-/* Chat Input */
-.chat-input-area{
-  padding:14px 16px 18px;border-top:1px solid var(--border-chat);
-  position:relative;z-index:2;flex-shrink:0;
-}
-.chat-input-wrap{
-  display:flex;align-items:center;gap:8px;
-  background:rgba(255,255,255,.03);
-  border:1px solid var(--border);border-radius:14px;
-  padding:4px 4px 4px 16px;transition:var(--transition);
-}
-.chat-input-wrap:focus-within{
-  border-color:var(--accent);
-  box-shadow:0 0 0 3px var(--accent-glow),0 0 20px rgba(99,102,241,.1);
-}
-.chat-input{
-  flex:1;padding:10px 0;background:transparent;border:none;
-  color:var(--text-primary);font-size:13.5px;font-family:inherit;outline:none;
-}
-.chat-input::placeholder{color:var(--text-dim)}
-.chat-send-btn{
-  width:38px;height:38px;border-radius:12px;border:none;
-  background:var(--gradient-accent);color:#fff;
-  cursor:pointer;font-size:16px;
-  display:flex;align-items:center;justify-content:center;
-  transition:var(--transition);flex-shrink:0;
-  box-shadow:0 2px 8px rgba(99,102,241,.3);
-}
-.chat-send-btn:hover{transform:scale(1.05);box-shadow:0 4px 16px rgba(99,102,241,.4)}
-.chat-send-btn:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
-   RIGHT: RESULTS PANEL
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-.results-panel{
-  flex:1;display:flex;flex-direction:column;
-  overflow:hidden;position:relative;z-index:1;
-}
-.results-topbar{
-  padding:14px 24px;border-bottom:1px solid var(--border);
-  background:var(--bg-glass);backdrop-filter:blur(20px);
-  display:flex;align-items:center;justify-content:space-between;
-  flex-shrink:0;position:relative;
-}
-.results-topbar::after{
-  content:'';position:absolute;bottom:0;left:0;width:100%;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(99,102,241,.12),transparent);
-}
-.results-topbar-left{display:flex;align-items:center;gap:10px}
-.results-topbar h2{font-size:16px;font-weight:700;letter-spacing:-.3px}
-.results-badge{
-  font-size:9px;padding:3px 10px;border-radius:var(--radius-full);
-  background:var(--accent-glow);color:var(--accent-light);
-  border:1px solid rgba(99,102,241,.15);font-weight:700;
-  text-transform:uppercase;letter-spacing:.8px;
-}
-.results-topbar-right{display:flex;align-items:center;gap:8px}
-.results-chip{
-  font-size:10.5px;color:var(--text-muted);padding:4px 10px;
-  background:rgba(255,255,255,.03);border-radius:var(--radius-full);
-  border:1px solid var(--border);display:flex;align-items:center;gap:4px;
-}
-
-.results-content{
-  flex:1;overflow-y:auto;padding:24px;
-  background:var(--gradient-glow);scroll-behavior:smooth;
-}
-
-/* ━━━ WHAT-IF INLINE ━━━ */
-.whatif-panel{
-  background:var(--gradient-card);border:1px solid var(--border);
-  border-radius:var(--radius);padding:22px;margin-bottom:20px;
-}
-
-/* ━━━ CARDS ━━━ */
-.card{
-  background:var(--gradient-card);border:1px solid var(--border);
-  border-radius:var(--radius);padding:22px;margin-bottom:20px;
-  box-shadow:var(--shadow-sm);backdrop-filter:blur(10px);
-  transition:var(--transition);position:relative;overflow:hidden;
-}
-.card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);
-}
-.card:hover{border-color:rgba(255,255,255,.1)}
-.card-title{
-  font-size:11px;font-weight:700;color:var(--text-muted);
-  text-transform:uppercase;letter-spacing:1.2px;
-  margin-bottom:16px;display:flex;align-items:center;gap:8px;
-}
-.card-title::before{content:'';width:3px;height:14px;border-radius:2px;background:var(--gradient-accent)}
-
-/* ━━━ KPI ━━━ */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
-.kpi-card{
-  background:var(--gradient-card);border:1px solid var(--border);
-  border-radius:var(--radius);padding:18px 20px;
-  transition:var(--transition);position:relative;overflow:hidden;
-}
-.kpi-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:var(--gradient-accent);opacity:0;transition:opacity .3s ease;
-}
-.kpi-card:hover{border-color:var(--border-active);transform:translateY(-2px);box-shadow:var(--shadow-glow)}
-.kpi-card:hover::before{opacity:1}
-.kpi-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.kpi-label{font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
-.kpi-icon{
-  width:30px;height:30px;border-radius:8px;
-  display:flex;align-items:center;justify-content:center;font-size:15px;
-}
-.kpi-icon.revenue{background:var(--accent-glow);color:var(--accent-light)}
-.kpi-icon.units{background:var(--green-glow);color:var(--green)}
-.kpi-icon.orders{background:rgba(59,130,246,.12);color:var(--blue)}
-.kpi-icon.rating{background:var(--amber-glow);color:var(--amber)}
-.kpi-value{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.2}
-.kpi-trend{
-  font-size:11px;font-weight:600;padding:2px 8px;margin-top:4px;
-  border-radius:var(--radius-full);display:inline-flex;align-items:center;gap:3px;
-}
-.kpi-trend.up{background:var(--green-glow);color:var(--green)}
-.kpi-trend.down{background:var(--red-glow);color:var(--red)}
-
-/* ━━━ CHARTS ━━━ */
-.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.chart-grid.single{grid-template-columns:1fr}
-.bar-chart{display:flex;align-items:flex-end;gap:6px;height:240px;padding:10px 0}
-.bar-group{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;cursor:pointer}
-.bar{width:100%;max-width:50px;border-radius:5px 5px 2px 2px;transition:all .4s cubic-bezier(.34,1.56,.64,1);min-height:4px}
-.bar:hover{filter:brightness(1.2);transform:scaleY(1.03) scaleX(1.08)}
-.bar-value{font-size:10px;color:var(--text-secondary);margin-bottom:4px;font-weight:700;opacity:.7}
-.bar-group:hover .bar-value{opacity:1;color:var(--text-primary)}
-.bar-label{font-size:9.5px;color:var(--text-dim);margin-top:7px;text-align:center;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-.pie-container{display:flex;align-items:center;justify-content:center;gap:30px;padding:16px}
-.pie-svg{width:180px;height:180px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.3))}
-.pie-legend{display:flex;flex-direction:column;gap:9px}
-.legend-item{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--text-secondary)}
-.legend-dot{width:9px;height:9px;border-radius:4px;flex-shrink:0}
-.legend-pct{color:var(--text-muted);font-size:10.5px;margin-left:auto;font-weight:600}
-
-.line-chart-container{padding:8px 0}
-.line-chart-svg{width:100%;height:240px}
-
-/* ━━━ NARRATIVE ━━━ */
-.narrative{
-  background:linear-gradient(135deg,var(--accent-glow),rgba(139,92,246,.04),transparent);
-  border-left:3px solid;border-image:var(--gradient-accent) 1;
-  padding:16px 20px;border-radius:0 var(--radius-sm) var(--radius-sm) 0;
-  font-size:13.5px;line-height:1.8;margin-bottom:18px;position:relative;
-}
-.narrative::before{
-  content:'💡';position:absolute;top:-10px;left:-14px;font-size:20px;
-  background:var(--bg-primary);padding:2px;border-radius:50%;
-}
-
-/* ━━━ TABLE ━━━ */
-.data-table-wrap{overflow-x:auto;max-height:380px;overflow-y:auto;border-radius:var(--radius-sm)}
-.data-table{width:100%;border-collapse:collapse;font-size:12px}
-.data-table th{
-  background:rgba(255,255,255,.03);padding:10px 12px;text-align:left;
-  font-weight:700;color:var(--text-muted);position:sticky;top:0;
-  border-bottom:1px solid var(--border);text-transform:uppercase;
-  letter-spacing:.5px;font-size:10px;backdrop-filter:blur(10px);z-index:2;
-}
-.data-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--text-secondary)}
-.data-table tbody tr:hover td{background:rgba(99,102,241,.04);color:var(--text-primary)}
-
-/* ━━━ SQL ━━━ */
-.sql-block{
-  background:rgba(0,0,0,.4);border:1px solid var(--border);
-  border-radius:var(--radius-sm);padding:12px 16px;
-  font-family:'JetBrains Mono','Fira Code',monospace;
-  font-size:11.5px;color:#a9dc76;overflow-x:auto;margin-top:10px;position:relative;
-}
-.sql-block::before{
-  content:'SQL';position:absolute;top:5px;right:8px;
-  font-size:8px;color:var(--text-dim);font-family:'Inter',sans-serif;
-  font-weight:700;letter-spacing:1px;
-}
-
-/* ━━━ SLIDERS ━━━ */
-.slider-group{margin-bottom:18px}
-.slider-header{display:flex;justify-content:space-between;margin-bottom:6px;align-items:center}
-.slider-label{font-size:12.5px;font-weight:600;color:var(--text-secondary)}
-.slider-val{
-  font-size:13px;font-weight:800;background:var(--gradient-accent);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;min-width:48px;text-align:right;
-}
-.slider-input{
-  width:100%;-webkit-appearance:none;appearance:none;height:5px;
-  border-radius:3px;background:var(--border);outline:none;
-}
-.slider-input::-webkit-slider-thumb{
-  -webkit-appearance:none;width:18px;height:18px;border-radius:50%;
-  background:var(--gradient-accent);cursor:pointer;
-  border:3px solid var(--bg-card);box-shadow:0 2px 8px rgba(99,102,241,.4);
-}
-
-/* ━━━ BTN ━━━ */
-.btn{
-  padding:10px 20px;border-radius:var(--radius-sm);border:none;cursor:pointer;
-  font-size:13px;font-weight:600;font-family:inherit;transition:var(--transition);
-  display:inline-flex;align-items:center;gap:6px;position:relative;overflow:hidden;
-}
-.btn-primary{background:var(--gradient-accent);color:#fff;box-shadow:0 4px 16px rgba(99,102,241,.3)}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(99,102,241,.4)}
-.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
-.btn-ghost{background:transparent;color:var(--text-secondary);padding:6px 12px;font-size:12px}
-.btn-ghost:hover{background:rgba(255,255,255,.04);color:var(--accent-light)}
-
-/* ━━━ ANOMALY ━━━ */
-.anomaly-card{
-  padding:14px 18px;border-radius:var(--radius-sm);
-  border-left:3px solid var(--amber);background:var(--amber-glow);
-  margin-bottom:10px;transition:var(--transition);
-}
-.anomaly-card:hover{transform:translateX(3px)}
-.anomaly-card.high{border-left-color:var(--red);background:var(--red-glow)}
-.anomaly-card.low{border-left-color:var(--green);background:var(--green-glow)}
-.anomaly-metric{font-weight:700;font-size:13.5px;margin-bottom:3px}
-.anomaly-desc{font-size:12.5px;color:var(--text-secondary);line-height:1.5}
-.anomaly-action{font-size:11.5px;color:var(--accent-light);margin-top:6px;font-weight:600}
-
-/* ━━━ PROFILE ━━━ */
-.profile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.profile-stat{
-  padding:18px;background:var(--bg-elevated);border-radius:var(--radius-sm);
-  text-align:center;border:1px solid var(--border);transition:var(--transition);
-}
-.profile-stat:hover{border-color:var(--border-active);transform:translateY(-2px)}
-.profile-stat-value{
-  font-size:28px;font-weight:800;background:var(--gradient-accent);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;
-}
-.profile-stat-label{font-size:10px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.8px;font-weight:600}
-
-/* ━━━ UPLOAD ZONE ━━━ */
-.upload-zone-mini{
-  border:2px dashed var(--border);border-radius:var(--radius);
-  padding:40px;text-align:center;cursor:pointer;
-  transition:var(--transition);background:var(--bg-card);
-}
-.upload-zone-mini:hover{border-color:var(--accent);background:var(--accent-glow)}
-
-/* ━━━ LOADING ━━━ */
-.loading-container{display:flex;flex-direction:column;align-items:center;padding:40px;gap:14px}
-.loading-spinner{width:36px;height:36px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.loading-text{font-size:12.5px;color:var(--text-muted);animation:pulseT 1.5s ease-in-out infinite}
-@keyframes pulseT{0%,100%{opacity:.4}50%{opacity:1}}
-
-/* ━━━ WELCOME ━━━ */
-.welcome-results{text-align:center;padding:80px 30px;max-width:500px;margin:0 auto}
-.welcome-results .icon{font-size:56px;margin-bottom:16px;animation:float 3s ease-in-out infinite}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-.welcome-results h3{font-size:22px;font-weight:800;margin-bottom:8px;letter-spacing:-.4px}
-.welcome-results p{color:var(--text-muted);font-size:13.5px;line-height:1.7}
-
-/* ━━━ ERROR ━━━ */
-.error-box{
-  padding:16px;background:var(--red-glow);border:1px solid rgba(239,68,68,.2);
-  border-radius:var(--radius-sm);color:var(--red);font-size:13px;
-  display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;
-}
-
-/* ━━━ FOLLOW-UPS IN CHAT ━━━ */
-.chat-suggestions{
-  display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;
-}
-.chat-suggestion-chip{
-  padding:5px 12px;background:rgba(99,102,241,.06);
-  border:1px solid rgba(99,102,241,.12);border-radius:var(--radius-full);
-  color:var(--accent-light);font-size:11px;font-weight:500;
-  cursor:pointer;transition:var(--transition);font-family:inherit;
-}
-.chat-suggestion-chip:hover{
-  background:var(--accent-glow-strong);border-color:var(--border-active);
-  transform:translateY(-1px);
-}
-
-/* ━━━ SCROLLBAR ━━━ */
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:rgba(255,255,255,.05);border-radius:10px}
-::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.1)}
-
-/* ━━━ RESPONSIVE ━━━ */
-@media(max-width:900px){
-  .app{flex-direction:column}
-  .chat-panel{width:100%;min-width:100%;height:50vh;border-right:none;border-bottom:1px solid var(--border)}
-  .results-panel{height:50vh}
-  .chart-grid{grid-template-columns:1fr}
-  .kpi-grid{grid-template-columns:repeat(2,1fr)}
-  .profile-grid{grid-template-columns:repeat(2,1fr)}
-}
-@media(max-width:480px){
-  .kpi-grid{grid-template-columns:1fr}
-  .profile-grid{grid-template-columns:1fr}
-}
-
-.fade-in{animation:fadeIn .35s ease-out}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.slide-up{animation:slideUp .45s cubic-bezier(.34,1.56,.64,1)}
-@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-  `;
-  document.head.prepend(el);
-};
-
-/* ━━━ CONSTANTS ━━━ */
-const COLORS = ["#6366f1","#8b5cf6","#06b6d4","#10b981","#f59e0b","#ef4444","#ec4899","#14b8a6","#3b82f6","#a78bfa"];
-
-function fmt(v) {
-  if (v == null || isNaN(v)) return "0";
-  const n = Number(v);
-  if (Math.abs(n) >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
-  if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
-  if (Math.abs(n) >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
-  return n % 1 === 0 ? n.toLocaleString() : n.toFixed(1);
-}
-
-function kpiIcon(label) {
-  const l = (label || "").toLowerCase();
-  if (l.includes("revenue") || l.includes("sales") || l.includes("total")) return { i: "💰", c: "revenue" };
-  if (l.includes("unit") || l.includes("quantity")) return { i: "📦", c: "units" };
-  if (l.includes("order") || l.includes("count")) return { i: "🛒", c: "orders" };
-  if (l.includes("rating") || l.includes("score")) return { i: "⭐", c: "rating" };
-  if (l.includes("profit")) return { i: "📈", c: "revenue" };
-  if (l.includes("discount")) return { i: "🏷️", c: "units" };
-  return { i: "📊", c: "revenue" };
-}
+import { useRouter } from "next/navigation";
+import { AuthService } from "../services/auth-service";
+import { apiRequest } from "../services/api-client";
+import {
+  User,
+  ChatMessage,
+  QueryResult,
+  WhatIfData,
+  DeepDiveData,
+  AnomalyData,
+  DatasetProfile,
+  RootCauseData,
+  ForecastData,
+  BusinessAlert,
+  AlertRuleItem,
+  DataQualityReport,
+  ComparisonData,
+  SavedDashboardItem,
+  DatasetRelationshipItem,
+  Dataset,
+  RelationshipCandidateItem,
+  RelationshipValidationResult,
+  RelationshipPreviewResult,
+  NotificationItem,
+  AuditLogItem,
+  PresentationItem,
+} from "../types";
+import { KPIGrid } from "../features/analytics/KPIGrid";
+import { ChartRenderer } from "../components/charts/ChartRenderer";
+import { DataTable } from "../components/common/DataTable";
+import { MarkdownRenderer } from "../components/common/MarkdownRenderer";
+import { Loading } from "../components/ui/Loading";
+import { BrandLogo } from "../components/ui/BrandLogo";
+import { SkeletonGrid } from "../components/ui/Skeleton";
+import { ChatMessages } from "../features/chat/ChatMessages";
+import { ChatInput } from "../features/chat/ChatInput";
+import { WhatIfPanel } from "../features/what-if/WhatIfPanel";
+import { AnomaliesPanel } from "../features/anomalies/AnomaliesPanel";
+import { DatasetProfileView } from "../features/dataset/DatasetProfileView";
+import { DeepDiveView } from "../features/analytics/DeepDiveView";
+import { ReportsView } from "../features/reports/ReportsView";
+import { ReportModal } from "../features/reports/ReportModal";
+import { RootCausePanel } from "../features/rca/RootCausePanel";
+import { ForecastingPanel } from "../features/forecasting/ForecastingPanel";
+import { AlertsPanel } from "../features/alerts/AlertsPanel";
+import { DataQualityPanel } from "../features/data-quality/DataQualityPanel";
+import { ComparisonPanel } from "../features/comparisons/ComparisonPanel";
+import { DashboardStudio } from "../features/dashboards/DashboardStudio";
+import { RelationshipsPanel } from "../features/relationships/RelationshipsPanel";
+import { NotificationsPanel } from "../features/notifications/NotificationsPanel";
+import { PresentationStudio } from "../features/presentations/PresentationStudio";
+import { AdminPanel } from "../features/admin/AdminPanel";
 
 function timeNow() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   CHART COMPONENTS
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-function BarChart({ data, xKey, yKey, title }) {
-  if (!data?.length) return null;
-  const vals = data.map(d => Number(d[yKey]) || 0);
-  const mx = Math.max(...vals, 1);
-  return (
-    <div className="card fade-in">
-      <div className="card-title">{title}</div>
-      <div className="bar-chart">
-        {data.slice(0, 20).map((d, i) => {
-          const v = Number(d[yKey]) || 0, h = Math.max((v / mx) * 100, 3);
-          return (<div className="bar-group" key={i}><div className="bar-value">{fmt(v)}</div><div className="bar" style={{ height: `${h}%`, background: `linear-gradient(180deg,${COLORS[i % COLORS.length]},${COLORS[i % COLORS.length]}55)`, boxShadow: `0 0 10px ${COLORS[i % COLORS.length]}22` }} title={`${d[xKey]}: ${fmt(v)}`} /><div className="bar-label" title={String(d[xKey])}>{String(d[xKey]).slice(0, 12)}</div></div>);
-        })}
-      </div>
-    </div>
-  );
-}
-
-function LineChart({ data, xKey, yKey, title }) {
-  if (!data?.length) return null;
-  const vals = data.map(d => Number(d[yKey]) || 0);
-  const mx = Math.max(...vals, 1), mn = Math.min(...vals, 0), rng = mx - mn || 1;
-  const w = 700, h = 230, pad = 46, pw = w - pad * 2, ph = h - pad * 2;
-  const pts = data.map((d, i) => ({ x: pad + (i / Math.max(data.length - 1, 1)) * pw, y: pad + ph - ((Number(d[yKey]) || 0) - mn) / rng * ph }));
-  const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-  const areaD = `${pathD} L ${pts[pts.length - 1].x} ${pad + ph} L ${pts[0].x} ${pad + ph} Z`;
-  const uid = `lg-${(title || "x").replace(/\W/g, "")}`;
-  return (
-    <div className="card fade-in">
-      <div className="card-title">{title}</div>
-      <div className="line-chart-container">
-        <svg className="line-chart-svg" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
-          <defs><linearGradient id={uid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={COLORS[0]} stopOpacity="0.2" /><stop offset="100%" stopColor={COLORS[0]} stopOpacity="0" /></linearGradient></defs>
-          {[0, .25, .5, .75, 1].map((f, i) => { const y = pad + ph * (1 - f); return (<g key={i}><line x1={pad} y1={y} x2={w - pad} y2={y} stroke="rgba(255,255,255,.04)" /><text x={pad - 8} y={y + 4} textAnchor="end" fill="#505872" fontSize="10" fontWeight="600">{fmt(mn + rng * f)}</text></g>); })}
-          <path d={areaD} fill={`url(#${uid})`} /><path d={pathD} fill="none" stroke={COLORS[0]} strokeWidth="2.5" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 5px ${COLORS[0]}44)` }} />
-          {pts.map((p, i) => (<circle key={i} cx={p.x} cy={p.y} r="3.5" fill={COLORS[0]} stroke="#111520" strokeWidth="2"><title>{`${data[i][xKey]}: ${fmt(data[i][yKey])}`}</title></circle>))}
-          {data.length <= 14 && pts.map((p, i) => (<text key={`l${i}`} x={p.x} y={h - 6} textAnchor="middle" fill="#505872" fontSize="9.5">{String(data[i][xKey]).slice(0, 7)}</text>))}
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function PieChart({ data, xKey, yKey, title }) {
-  if (!data?.length) return null;
-  const slices = data.slice(0, 8);
-  const total = slices.reduce((s, d) => s + (Number(d[yKey]) || 0), 0) || 1;
-  let cum = 0;
-  const paths = slices.map((d, i) => {
-    const v = Number(d[yKey]) || 0, ang = (v / total) * 360, sa = cum; cum += ang;
-    const r = 82, cx = 100, cy = 100, s = (sa - 90) * Math.PI / 180, e = (cum - 90) * Math.PI / 180;
-    return { d: `M ${cx} ${cy} L ${cx + r * Math.cos(s)} ${cy + r * Math.sin(s)} A ${r} ${r} 0 ${ang > 180 ? 1 : 0} 1 ${cx + r * Math.cos(e)} ${cy + r * Math.sin(e)} Z`, color: COLORS[i % COLORS.length], label: String(d[xKey]), pct: ((v / total) * 100).toFixed(1), val: v };
-  });
-  return (
-    <div className="card fade-in">
-      <div className="card-title">{title}</div>
-      <div className="pie-container">
-        <svg className="pie-svg" viewBox="0 0 200 200">
-          {paths.map((p, i) => (<path key={i} d={p.d} fill={p.color} stroke="#111520" strokeWidth="2" style={{ filter: `drop-shadow(0 2px 4px ${p.color}33)` }}><title>{`${p.label}: ${fmt(p.val)} (${p.pct}%)`}</title></path>))}
-          <circle cx="100" cy="100" r="40" fill="#111520" /><text x="100" y="96" textAnchor="middle" fill="#f1f3f9" fontSize="15" fontWeight="800">{fmt(total)}</text><text x="100" y="110" textAnchor="middle" fill="#505872" fontSize="8.5" fontWeight="600">TOTAL</text>
-        </svg>
-        <div className="pie-legend">{paths.map((p, i) => (<div className="legend-item" key={i}><div className="legend-dot" style={{ background: p.color }} /><span>{p.label.slice(0, 18)}</span><span className="legend-pct">{p.pct}%</span></div>))}</div>
-      </div>
-    </div>
-  );
-}
-
-function ChartRenderer({ config }) {
-  if (!config?.data?.length) return null;
-  const { type, data, x_axis, y_axis, title } = config;
-  if (type === "line" || type === "area") return <LineChart data={data} xKey={x_axis} yKey={y_axis} title={title} />;
-  if (type === "pie") return <PieChart data={data} xKey={x_axis} yKey={y_axis} title={title} />;
-  return <BarChart data={data} xKey={x_axis} yKey={y_axis} title={title} />;
-}
-
-function DataTable({ data, title }) {
-  if (!data?.length) return null;
-  const cols = Object.keys(data[0]);
-  return (
-    <div className="card fade-in">
-      <div className="card-title">{title || "Data"}</div>
-      <div className="data-table-wrap">
-        <table className="data-table">
-          <thead><tr>{cols.map(c => <th key={c}>{c.replace(/_/g, " ")}</th>)}</tr></thead>
-          <tbody>{data.slice(0, 50).map((row, i) => (<tr key={i}>{cols.map(c => (<td key={c}>{typeof row[c] === "number" ? fmt(row[c]) : String(row[c] ?? "")}</td>))}</tr>))}</tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function Loading({ text = "Analyzing..." }) {
-  return <div className="loading-container fade-in"><div className="loading-spinner" /><div className="loading-text">{text}</div></div>;
-}
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   MAIN APP — SINGLE PAGE
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-export default function App() {
-  const [health, setHealth] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
+export default function DashboardPage() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [health, setHealth] = useState<any>(null);
+  const [activeDataset, setActiveDataset] = useState<any>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeView, setActiveView] = useState("welcome"); // welcome | query | deepdive | whatif | anomalies | upload
-  const [viewData, setViewData] = useState(null);
+  const [activeView, setActiveView] = useState<
+    | "welcome"
+    | "query"
+    | "deepdive"
+    | "whatif"
+    | "anomalies"
+    | "upload"
+    | "reports"
+    | "rca"
+    | "forecast"
+    | "alerts"
+    | "quality"
+    | "compare"
+    | "studio"
+    | "relationships"
+    | "notifications"
+    | "presentations"
+    | "admin"
+  >("welcome");
+  const [queryData, setQueryData] = useState<QueryResult | null>(null);
+  const [whatIfData, setWhatIfData] = useState<WhatIfData | null>(null);
+  const [deepDiveData, setDeepDiveData] = useState<DeepDiveData | null>(null);
+  const [anomalyData, setAnomalyData] = useState<AnomalyData | null>(null);
+  const [profileData, setProfileData] = useState<DatasetProfile | null>(null);
+  const [rcaData, setRcaData] = useState<RootCauseData | null>(null);
+  const [forecastData, setForecastData] = useState<ForecastData | null>(null);
+  const [alerts, setAlerts] = useState<BusinessAlert[]>([]);
+  const [alertRules, setAlertRules] = useState<AlertRuleItem[]>([]);
+  const [qualityReport, setQualityReport] = useState<DataQualityReport | null>(null);
+  const [cleanedPreview, setCleanedPreview] = useState<Array<Record<string, any>> | null>(null);
+  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
+  const [currentDashboard, setCurrentDashboard] = useState<any | null>(null);
+  const [savedDashboards, setSavedDashboards] = useState<SavedDashboardItem[]>([]);
+  const [relationships, setRelationships] = useState<DatasetRelationshipItem[]>([]);
+  const [userDatasets, setUserDatasets] = useState<Dataset[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const [presentations, setPresentations] = useState<PresentationItem[]>([]);
+  const [adminUsers, setAdminUsers] = useState<User[]>([]);
+  const [adminAuditLogs, setAdminAuditLogs] = useState<AuditLogItem[]>([]);
+  const [adminSystemStatus, setAdminSystemStatus] = useState<any>(null);
   const [showSql, setShowSql] = useState(false);
-  const [history, setHistory] = useState([]);
-  const msgEndRef = useRef(null);
-  const fileRef = useRef(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [highlightedSection, setHighlightedSection] = useState<string | null>(null);
+  const [history, setHistory] = useState<Array<{ role: string; content: string }>>([]);
 
-  // What-If state
-  const [wiPrice, setWiPrice] = useState(0);
-  const [wiDiscount, setWiDiscount] = useState(0);
-  const [wiUnits, setWiUnits] = useState(0);
-
-  useEffect(() => {
-    injectStyles();
-    fetch(`${API}/api/health`).then(r => r.json()).then(h => {
-      setHealth(h);
-      if (h.status === "healthy" && h.row_count > 0) {
-        addAiMessage(`Welcome! I have **${h.row_count.toLocaleString()} rows** loaded from \`${h.table_name}\` with ${h.columns?.length || 0} columns. Ask me anything or use the quick actions below!`);
-      } else {
-        addAiMessage("Welcome to DASH.AI! Upload a CSV file to get started — use the 📁 button above.");
-      }
-    }).catch(() => {
-      setHealth({ status: "error" });
-      addAiMessage("⚠️ Cannot connect to backend. Make sure the server is running on port 8000.");
-    });
+  const showToast = useCallback((msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg((curr) => (curr === msg ? null : curr)), 2800);
   }, []);
+
+  const msgEndRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Authentication & Initialization
+  useEffect(() => {
+    const user = AuthService.getUser();
+    if (!user && !AuthService.getToken()) {
+      router.push("/login");
+      return;
+    }
+    setCurrentUser(user);
+
+    // Fetch live user and active dataset status
+    AuthService.fetchCurrentUser().then((u) => {
+      if (u) setCurrentUser(u);
+    });
+
+    apiRequest("/api/v1/health")
+      .then((h) => {
+        setHealth(h);
+        return apiRequest<any>("/api/v1/datasets/active");
+      })
+      .then((activeDs) => {
+        if (activeDs && (activeDs.row_count > 0 || activeDs.rows > 0)) {
+          setActiveDataset(activeDs);
+          const count = activeDs.row_count || activeDs.rows;
+          const fname = activeDs.original_filename || activeDs.filename || "dataset.csv";
+          addAiMessage(
+            `Welcome to **INSLIGHT**! I have **${count.toLocaleString()} records** loaded from \`${fname}\` ready for analysis.`
+          );
+        } else {
+          setActiveDataset(null);
+          addAiMessage("Welcome to INSLIGHT! Upload a CSV file or start exploring your business metrics.");
+        }
+      })
+      .catch(() => {
+        setHealth({ status: "healthy" });
+        setActiveDataset(null);
+        addAiMessage("Welcome to INSLIGHT! Upload a CSV file or start exploring your business metrics.");
+      });
+  }, [router]);
 
   useEffect(() => {
     msgEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  function addAiMessage(text, suggestions = []) {
-    setMessages(prev => [...prev, { role: "ai", text, time: timeNow(), suggestions }]);
-  }
+  const addAiMessage = (text: string, suggestions: string[] = []) => {
+    setMessages((prev) => [...prev, { role: "ai", text, time: timeNow(), suggestions }]);
+  };
 
-  function addUserMessage(text) {
-    setMessages(prev => [...prev, { role: "user", text, time: timeNow() }]);
-  }
+  const addUserMessage = (text: string) => {
+    setMessages((prev) => [...prev, { role: "user", text, time: timeNow() }]);
+  };
 
-  /* ── QUERY ── */
-  const handleQuery = useCallback(async (q = "") => {
-    const query = q || input;
-    if (!query.trim() || loading) return;
-    setInput("");
-    addUserMessage(query);
-    setLoading(true);
-    setActiveView("query");
-    setViewData(null);
-    setShowSql(false);
+  /* ━━━ QUERY EXECUTION VIA AI BI AGENT ━━━ */
+  const handleQuery = useCallback(
+    async (queryText: string) => {
+      if (!queryText.trim() || loading) return;
+      addUserMessage(queryText);
+      setLoading(true);
+      setShowSql(false);
 
-    try {
-      const res = await fetch(`${API}/api/query`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: query, conversation_history: history.slice(-6) }),
-      });
-      const data = await res.json();
-      setViewData(data);
-      setHistory(h => [...h, { role: "user", content: query }]);
+      try {
+        const agentRes = await apiRequest<any>("/api/v1/agent/query", {
+          method: "POST",
+          body: JSON.stringify({
+            question: queryText,
+            history: history.slice(-6),
+          }),
+        });
 
-      if (data.error) {
-        addAiMessage(`⚠️ ${data.error}${data.suggestion ? `\n\n💡 ${data.suggestion}` : ""}`);
-      } else {
-        const kpiSummary = data.kpi_cards?.map(k => `**${k.label}**: ${k.value}`).join(" · ") || "";
+        setHistory((h) => [...h, { role: "user", content: queryText }]);
+
+        if (agentRes.status === "rejected") {
+          addAiMessage(`⚠️ ${agentRes.answer}`, agentRes.suggested_follow_ups || []);
+          return;
+        }
+
+        // Route UI view based on selected tool
+        if (agentRes.tool_used === "root_cause_analysis" && agentRes.data) {
+          setRcaData(agentRes.data);
+          setActiveView("rca");
+        } else if (agentRes.tool_used === "forecasting" && agentRes.data) {
+          setForecastData(agentRes.data);
+          setActiveView("forecast");
+        } else if (agentRes.tool_used === "comparative_analytics" && agentRes.data) {
+          setComparisonData(agentRes.data);
+          setActiveView("compare");
+        } else {
+          // Route strategic_analysis, sql_query, or general business intelligence
+          setQueryData({
+            kpi_cards: agentRes.kpi_results || agentRes.data?.kpi_cards || [],
+            main_chart: agentRes.charts?.main_chart || agentRes.data?.main_chart,
+            secondary_chart: agentRes.charts?.secondary_chart || agentRes.data?.secondary_chart,
+            opportunities: agentRes.opportunities || agentRes.data?.opportunities || [],
+            risks: agentRes.risks || agentRes.data?.risks || [],
+            supporting_table: agentRes.supporting_table || agentRes.data?.supporting_table,
+            narrative: agentRes.answer || agentRes.data?.narrative || "",
+            summary: agentRes.summary || agentRes.data?.summary,
+            analytical_steps: agentRes.analytical_steps || agentRes.reasoning_steps || [],
+            suggested_followups: agentRes.suggested_follow_ups || agentRes.data?.suggested_followups || [],
+            sql_query: agentRes.data?.sql_query,
+            error: agentRes.error || agentRes.data?.error,
+            available_columns: agentRes.dataset_metadata?.columns || agentRes.data?.available_columns,
+          });
+          setActiveView("query");
+        }
+
+        const reasoning = agentRes.reasoning_steps?.length > 0
+          ? `\n\n*Agent Workflow:*\n${agentRes.reasoning_steps.join("\n")}`
+          : "";
+
         addAiMessage(
-          `${data.narrative || "Here are your results."}\n\n${kpiSummary ? `📊 ${kpiSummary}` : ""}`,
-          data.suggested_followups || []
+          `${agentRes.answer}${reasoning}`,
+          agentRes.suggested_follow_ups || []
         );
+      } catch (err: any) {
+        addAiMessage(`❌ Query error: ${err.message}`);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      addAiMessage(`❌ Connection failed: ${err.message}`);
+    },
+    [history, loading]
+  );
+
+  /* ━━━ PHASE 3 HANDLERS ━━━ */
+  const runRCA = async () => {
+    setLoading(true);
+    setActiveView("rca");
+    try {
+      const data = await apiRequest<RootCauseData>("/api/v1/analytics/rca", { method: "POST", body: "{}" });
+      setRcaData(data);
+    } catch (e: any) {
+      addAiMessage(`❌ Root Cause Analysis error: ${e.message}`);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [input, history, loading]);
-
-  /* ── DEEP DIVE ── */
-  const runDeepDive = async () => {
-    addUserMessage("🔬 Run Deep Dive Analysis");
-    setLoading(true); setActiveView("deepdive"); setViewData(null);
-    try {
-      const data = await (await fetch(`${API}/api/deep-dive`, { method: "POST" })).json();
-      setViewData(data);
-      addAiMessage(data.root_cause_analysis || "Deep dive analysis complete. Check the results panel →", []);
-    } catch (err) { addAiMessage(`❌ ${err.message}`); }
-    setLoading(false);
   };
 
-  /* ── WHAT-IF ── */
-  const runWhatIf = async () => {
-    addUserMessage(`🎯 What-If: Price ${wiPrice > 0 ? "+" : ""}${wiPrice}%, Discount ${wiDiscount > 0 ? "+" : ""}${wiDiscount}%, Volume ${wiUnits > 0 ? "+" : ""}${wiUnits}%`);
-    setLoading(true); setActiveView("whatif"); setViewData(null);
+  const runForecast = async (horizon: number = 30, method: string = "auto") => {
+    setLoading(true);
+    setActiveView("forecast");
     try {
-      const res = await fetch(`${API}/api/what-if`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ price_change: wiPrice, discount_change: wiDiscount, units_change: wiUnits }),
+      const data = await apiRequest<ForecastData>("/api/v1/analytics/forecast", {
+        method: "POST",
+        body: JSON.stringify({ horizon, method }),
       });
-      const data = await res.json();
-      setViewData(data);
-      addAiMessage(data.ai_commentary || "Scenario analysis complete.", []);
-    } catch (err) { addAiMessage(`❌ ${err.message}`); }
-    setLoading(false);
+      setForecastData(data);
+    } catch (e: any) {
+      addAiMessage(`❌ Forecasting error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  /* ── ANOMALIES ── */
-  const runAnomalies = async () => {
-    addUserMessage("🔍 Scan for Anomalies");
-    setLoading(true); setActiveView("anomalies"); setViewData(null);
+  const fetchAlerts = async () => {
+    setLoading(true);
+    setActiveView("alerts");
     try {
-      const data = await (await fetch(`${API}/api/anomalies`)).json();
-      setViewData(data);
+      const [alertList, ruleList] = await Promise.all([
+        apiRequest<BusinessAlert[]>("/api/v1/alerts"),
+        apiRequest<AlertRuleItem[]>("/api/v1/alerts/rules"),
+      ]);
+      setAlerts(alertList || []);
+      setAlertRules(ruleList || []);
+    } catch (e: any) {
+      addAiMessage(`❌ Alert service error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const scanAlerts = async () => {
+    setLoading(true);
+    try {
+      const updated = await apiRequest<BusinessAlert[]>("/api/v1/alerts/scan", { method: "POST" });
+      setAlerts(updated || []);
+      addAiMessage(`🔍 Scan complete. Found ${updated?.length || 0} active alerts.`);
+    } catch (e: any) {
+      addAiMessage(`❌ Scan error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markAlertRead = async (id: string) => {
+    try {
+      await apiRequest(`/api/v1/alerts/${id}/read`, { method: "PATCH" });
+      setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const resolveAlert = async (id: string) => {
+    try {
+      await apiRequest(`/api/v1/alerts/${id}/resolve`, { method: "PATCH" });
+      setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_resolved: true } : a)));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const createAlertRule = async (name: string, metric: string, cond: string, thresh: number) => {
+    try {
+      const newRule = await apiRequest<AlertRuleItem>("/api/v1/alerts/rules", {
+        method: "POST",
+        body: JSON.stringify({ name, metric_name: metric, condition: cond, threshold_value: thresh }),
+      });
+      setAlertRules((prev) => [...prev, newRule]);
+      addAiMessage(`✅ Configured alert rule: '${name}'.`);
+    } catch (e: any) {
+      addAiMessage(`❌ Rule creation error: ${e.message}`);
+    }
+  };
+
+  const runQualityAudit = async () => {
+    setLoading(true);
+    setActiveView("quality");
+    try {
+      const active = await apiRequest<any>("/api/v1/datasets/active");
+      if (!active?.id) throw new Error("No active dataset loaded.");
+      const res = await apiRequest<DataQualityReport>(`/api/v1/datasets/${active.id}/quality`, { method: "POST" });
+      setQualityReport(res);
+    } catch (e: any) {
+      addAiMessage(`❌ Data Quality error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const previewCleaned = async () => {
+    try {
+      const active = await apiRequest<any>("/api/v1/datasets/active");
+      if (!active?.id) return;
+      const res = await apiRequest<any>(`/api/v1/datasets/${active.id}/quality/preview`);
+      setCleanedPreview(res.preview_records || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const runComparison = async (mode: string = "period") => {
+    setLoading(true);
+    setActiveView("compare");
+    try {
+      const data = await apiRequest<ComparisonData>("/api/v1/analytics/compare", {
+        method: "POST",
+        body: JSON.stringify({ comparison_mode: mode }),
+      });
+      setComparisonData(data);
+    } catch (e: any) {
+      addAiMessage(`❌ Comparison error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateDashboard = async (prompt: string) => {
+    setLoading(true);
+    setActiveView("studio");
+    try {
+      const data = await apiRequest<any>("/api/v1/dashboards/generate", {
+        method: "POST",
+        body: JSON.stringify({ prompt }),
+      });
+      setCurrentDashboard(data);
+    } catch (e: any) {
+      addAiMessage(`❌ Dashboard Builder error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveDashboard = async (title: string, desc: string, layout: any) => {
+    try {
+      const saved = await apiRequest<SavedDashboardItem>("/api/v1/dashboards", {
+        method: "POST",
+        body: JSON.stringify({ title, description: desc, layout_config: layout }),
+      });
+      setSavedDashboards((prev) => [saved, ...prev]);
+      addAiMessage(`✅ Saved dashboard: '${title}'.`);
+    } catch (e: any) {
+      addAiMessage(`❌ Save dashboard error: ${e.message}`);
+    }
+  };
+
+  const fetchSavedDashboards = async () => {
+    setActiveView("studio");
+    try {
+      const list = await apiRequest<SavedDashboardItem[]>("/api/v1/dashboards");
+      setSavedDashboards(list || []);
+      if (!currentDashboard) {
+        generateDashboard("Executive sales summary dashboard");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteDashboard = async (id: string) => {
+    try {
+      await apiRequest(`/api/v1/dashboards/${id}`, { method: "DELETE" });
+      setSavedDashboards((prev) => prev.filter((d) => d.id !== id));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchRelationships = async () => {
+    setLoading(true);
+    setActiveView("relationships");
+    try {
+      const [rels, dsList] = await Promise.all([
+        apiRequest<DatasetRelationshipItem[]>("/api/v1/relationships"),
+        apiRequest<Dataset[]>("/api/v1/datasets").catch(() => []),
+      ]);
+      setRelationships(rels || []);
+      setUserDatasets(dsList || []);
+    } catch (e: any) {
+      addAiMessage(`❌ Relationship service error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const detectRelationshipCandidates = async (
+    sourceId: string,
+    targetId: string
+  ): Promise<RelationshipCandidateItem[]> => {
+    return apiRequest<RelationshipCandidateItem[]>("/api/v1/relationships/candidates", {
+      method: "POST",
+      body: JSON.stringify({ source_dataset_id: sourceId, target_dataset_id: targetId }),
+    });
+  };
+
+  const validateRelationship = async (
+    sourceId: string,
+    targetId: string,
+    sourceCol: string,
+    targetCol: string
+  ): Promise<RelationshipValidationResult> => {
+    return apiRequest<RelationshipValidationResult>("/api/v1/relationships/validate", {
+      method: "POST",
+      body: JSON.stringify({
+        source_dataset_id: sourceId,
+        target_dataset_id: targetId,
+        source_column: sourceCol,
+        target_column: targetCol,
+      }),
+    });
+  };
+
+  const previewRelationshipJoin = async (
+    sourceId: string,
+    targetId: string,
+    sourceCol: string,
+    targetCol: string,
+    limit: number = 10
+  ): Promise<RelationshipPreviewResult> => {
+    return apiRequest<RelationshipPreviewResult>("/api/v1/relationships/preview", {
+      method: "POST",
+      body: JSON.stringify({
+        source_dataset_id: sourceId,
+        target_dataset_id: targetId,
+        source_column: sourceCol,
+        target_column: targetCol,
+        limit,
+      }),
+    });
+  };
+
+  const saveRelationship = async (
+    sourceId: string,
+    targetId: string,
+    sourceCol: string,
+    targetCol: string,
+    relType: string
+  ) => {
+    const res = await apiRequest<DatasetRelationshipItem>("/api/v1/relationships", {
+      method: "POST",
+      body: JSON.stringify({
+        source_dataset_id: sourceId,
+        target_dataset_id: targetId,
+        source_column: sourceCol,
+        target_column: targetCol,
+        relationship_type: relType,
+      }),
+    });
+    setRelationships((prev) => [res, ...prev.filter((r) => r.id !== res.id)]);
+    showToast(`Relationship established: ${sourceCol} ➔ ${targetCol} (${relType})`);
+    addAiMessage(
+      `🔗 Successfully configured relationship between **${res.source_dataset_name || "Source"}** and **${res.target_dataset_name || "Target"}** on key \`${sourceCol} = ${targetCol}\` (Type: ${relType}).`
+    );
+    return true;
+  };
+
+  const deleteRelationship = async (id: string) => {
+    await apiRequest(`/api/v1/relationships/${id}`, { method: "DELETE" });
+    setRelationships((prev) => prev.filter((r) => r.id !== id));
+    showToast("Relationship deleted.");
+    addAiMessage("🗑️ Dataset relationship deleted.");
+  };
+
+  /* ━━━ PHASE 4 HANDLERS ━━━ */
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const res = await apiRequest<{ unread_count: number }>("/api/v1/notifications/unread-count");
+      setUnreadNotifCount(res?.unread_count || 0);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    refreshUnreadCount();
+    const id = setInterval(refreshUnreadCount, 30000);
+    return () => clearInterval(id);
+  }, [refreshUnreadCount]);
+
+  const fetchNotifications = async () => {
+    setLoading(true);
+    setActiveView("notifications");
+    try {
+      const items = await apiRequest<NotificationItem[]>("/api/v1/notifications");
+      setNotifications(items || []);
+      setUnreadNotifCount((items || []).filter((n) => !n.is_read).length);
+    } catch (e: any) {
+      addAiMessage(`❌ Notifications error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markNotifRead = async (id: string) => {
+    await apiRequest(`/api/v1/notifications/${id}/read`, { method: "PATCH" });
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    setUnreadNotifCount((c) => Math.max(0, c - 1));
+  };
+
+  const markAllNotifsRead = async () => {
+    await apiRequest("/api/v1/notifications/read-all", { method: "PATCH" });
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnreadNotifCount(0);
+  };
+
+  const deleteNotif = async (id: string) => {
+    await apiRequest(`/api/v1/notifications/${id}`, { method: "DELETE" });
+    setNotifications((prev) => {
+      const next = prev.filter((n) => n.id !== id);
+      setUnreadNotifCount(next.filter((n) => !n.is_read).length);
+      return next;
+    });
+  };
+
+  const fetchPresentations = async () => {
+    setLoading(true);
+    setActiveView("presentations");
+    try {
+      const items = await apiRequest<PresentationItem[]>("/api/v1/presentations");
+      setPresentations(items || []);
+    } catch (e: any) {
+      addAiMessage(`❌ Presentations error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAdminData = async () => {
+    setLoading(true);
+    setActiveView("admin");
+    try {
+      const [usersRes, logsRes, statusRes] = await Promise.all([
+        apiRequest<User[]>("/api/v1/admin/users"),
+        apiRequest<{ items: AuditLogItem[] }>("/api/v1/admin/audit-logs?limit=50"),
+        apiRequest<any>("/api/v1/admin/system-status"),
+      ]);
+      setAdminUsers(usersRes || []);
+      setAdminAuditLogs(logsRes?.items || []);
+      setAdminSystemStatus(statusRes);
+    } catch (e: any) {
+      addAiMessage(`❌ Admin access error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ━━━ DEEP DIVE ━━━ */
+  const runDeepDive = async (refresh: boolean = false) => {
+    addUserMessage(refresh ? "↻ Refresh Deep Dive Business Analysis" : "🔬 Run Deep Dive Business Analysis");
+    setLoading(true);
+    setActiveView("deepdive");
+    try {
+      const data = await apiRequest<DeepDiveData>(`/api/v1/deep-dive?refresh=${refresh}`, { method: "POST" });
+      setDeepDiveData(data);
+      const findings = data.executive_summary?.key_findings || [];
+      const summaryMsg = findings.length > 0
+        ? `### Deep Dive Analysis Complete\n\n${findings.map((f) => `- ${f}`).join("\n")}\n\nExplore all 10 interactive sections and charts in the research workspace →`
+        : data.root_cause_analysis || "Deep dive analysis complete. View details in the results panel →";
+      addAiMessage(summaryMsg, [
+        "Which products generate the highest profit?",
+        "Which regions are underperforming?",
+        "What are the biggest risks?",
+      ]);
+    } catch (err: any) {
+      addAiMessage(`❌ ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const jumpToDeepDiveSection = (sectionId: string) => {
+    setActiveView("deepdive");
+    setHighlightedSection(sectionId);
+    setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  };
+
+  /* ━━━ WHAT-IF ━━━ */
+  const runWhatIfSimulation = async (price: number, discount: number, units: number) => {
+    addUserMessage(
+      `🎯 What-If Scenario: Price ${price > 0 ? "+" : ""}${price}%, Discount ${discount > 0 ? "+" : ""}${discount}%, Volume ${units > 0 ? "+" : ""}${units}%`
+    );
+    setLoading(true);
+    setActiveView("whatif");
+    try {
+      const data = await apiRequest<WhatIfData>("/api/v1/what-if", {
+        method: "POST",
+        body: JSON.stringify({ price_change: price, discount_change: discount, units_change: units }),
+      });
+      setWhatIfData(data);
+      addAiMessage(data.ai_commentary || "Scenario simulation calculated.");
+    } catch (err: any) {
+      addAiMessage(`❌ ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ━━━ ANOMALIES ━━━ */
+  const runAnomaliesScan = async () => {
+    addUserMessage("🔍 Scan for Statistical Outliers & Anomalies");
+    setLoading(true);
+    setActiveView("anomalies");
+    try {
+      const data = await apiRequest<AnomalyData>("/api/v1/anomalies");
+      setAnomalyData(data);
       addAiMessage(
         data.count > 0
-          ? `Found **${data.count} anomalies** in your data. Check details in the results panel →`
-          : "✅ No significant anomalies detected. Your data looks clean!",
-        []
+          ? `Detected **${data.count} anomalies** in your business metrics. Check details in the results panel →`
+          : "✅ All clear. No statistically significant anomalies found."
       );
-    } catch (err) { addAiMessage(`❌ ${err.message}`); }
-    setLoading(false);
+    } catch (err: any) {
+      addAiMessage(`❌ ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  /* ── UPLOAD ── */
-  const doUpload = async (file) => {
+  /* ━━━ FILE UPLOAD ━━━ */
+  const handleUpload = async (file: File) => {
     if (!file) return;
     addUserMessage(`📁 Uploading: ${file.name}`);
-    setLoading(true); setActiveView("upload"); setViewData(null);
+    setLoading(true);
+    setActiveView("upload");
     try {
-      const fd = new FormData(); fd.append("file", file);
-      const res = await fetch(`${API}/api/upload`, { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.profile) {
-        setViewData(data.profile);
-        setHealth(prev => ({ ...prev, status: "healthy", row_count: data.profile.rows, columns: data.profile.column_info?.map(c => c.name) || [], table_name: data.profile.filename?.replace(".csv", "") }));
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await apiRequest<any>("/api/v1/datasets/upload", {
+        method: "POST",
+        body: fd,
+      });
+
+      if (res.profile) {
+        setProfileData(res.profile);
+        const count = res.profile.rows || res.profile.row_count || 0;
+        const fname = res.profile.filename || file.name;
+        setActiveDataset({
+          id: res.dataset_id || res.profile.id,
+          table_name: fname.replace(".csv", ""),
+          original_filename: fname,
+          filename: fname,
+          row_count: count,
+          rows: count,
+          columns: res.profile.column_info?.map((c: any) => c.name) || [],
+        });
+        setHealth((prev: any) => ({
+          ...prev,
+          status: "healthy",
+          row_count: count,
+          columns: res.profile.column_info?.map((c: any) => c.name) || [],
+          table_name: fname.replace(".csv", ""),
+        }));
         addAiMessage(
-          `✅ Loaded **${data.profile.rows.toLocaleString()} rows** × **${data.profile.columns} columns** (Quality: ${data.profile.data_quality_score}%). Ready to analyze!`,
-          data.profile.suggested_questions || []
+          `✅ Loaded **${count.toLocaleString()} records** × **${res.profile.columns} columns** (Quality Score: ${res.profile.data_quality_score}%). Your dataset is isolated and ready!`,
+          res.profile.suggested_questions || []
         );
-      } else {
-        addAiMessage(`⚠️ Upload issue: ${data.detail || "Unknown error"}`);
+        apiRequest<Dataset[]>("/api/v1/datasets").then(setUserDatasets).catch(() => {});
       }
-    } catch (err) { addAiMessage(`❌ Upload failed: ${err.message}`); }
-    setLoading(false);
+    } catch (err: any) {
+      addAiMessage(`❌ Upload error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isOnline = health?.status === "healthy";
-  const rowCount = health?.row_count || 0;
+  const rowCount = activeDataset?.row_count || activeDataset?.rows || health?.row_count || 0;
+  const datasetName = (activeDataset?.original_filename || activeDataset?.filename || activeDataset?.table_name || "").replace(".csv", "");
 
   return (
     <div className="app">
       {/* ━━━ LEFT: CHAT PANEL ━━━ */}
-      <div className="chat-panel">
-
-        {/* Header */}
+      <div className={`chat-panel ${chatCollapsed ? "collapsed" : ""}`}>
         <div className="chat-header">
           <div className="chat-brand">
-            <div className="chat-logo">⚡</div>
-            <div className="chat-brand-text">
-              <span className="chat-brand-name">DASH.AI</span>
-              <span className="chat-brand-sub">BI Co-Pilot</span>
+            <BrandLogo size={38} />
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ fontSize: 11, padding: "4px 8px" }}
+                onClick={() => {
+                  setMessages([]);
+                  setHistory([]);
+                  setActiveView("welcome");
+                  addAiMessage("Started a fresh analysis session. Ask any question or launch Deep Dive.");
+                }}
+                title="Start New Analysis"
+              >
+                + New
+              </button>
+              {currentUser && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: 11, padding: "4px 9px" }}
+                  onClick={() => AuthService.logout()}
+                  title={`Signed in as ${currentUser.email}`}
+                >
+                  Sign out
+                </button>
+              )}
             </div>
           </div>
+
           <div className="chat-status">
-            <div className={`status-dot ${isOnline ? "on" : "off"}`} />
+            <div className={`status-dot ${isOnline && rowCount > 0 ? "on" : "off"}`} />
             <span className="chat-status-text">
-              {isOnline ? `${rowCount.toLocaleString()} rows` : "Offline"}
+              {rowCount > 0
+                ? `${datasetName || "Dataset"} (${rowCount.toLocaleString()} records)`
+                : (isOnline ? "No dataset loaded" : "Connecting...")}
             </span>
-            <span className="chat-status-badge">{isOnline ? "LIVE" : "OFF"}</span>
+            <span className="chat-status-badge">{rowCount > 0 ? "LOADED" : (isOnline ? "READY" : "OFF")}</span>
           </div>
-          <button id="chat-upload-btn" name="chat-upload-btn" className="chat-upload-btn" type="button"
-            onClick={() => fileRef.current?.click()}>
-            📁 Upload CSV
+
+          <button
+            type="button"
+            className="chat-upload-btn"
+            onClick={() => fileRef.current?.click()}
+          >
+            📁 Upload CSV Dataset
           </button>
-          <input id="file-upload" name="file-upload" type="file" accept=".csv" ref={fileRef}
-            style={{ display: "none" }} onChange={e => doUpload(e.target.files[0])} aria-label="Upload CSV" />
+          <input
+            type="file"
+            accept=".csv"
+            ref={fileRef}
+            style={{ display: "none" }}
+            onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+            aria-label="Upload CSV Dataset"
+          />
         </div>
 
         {/* Messages */}
-        <div className="chat-messages">
-          {messages.map((msg, i) => (
-            <div key={i} className={`msg ${msg.role}`}>
-              <div className="msg-avatar">{msg.role === "user" ? "👤" : "✨"}</div>
-              <div>
-                <div className="msg-bubble">
-                  {msg.text.split("**").map((part, j) =>
-                    j % 2 === 1 ? <strong key={j}>{part}</strong> : <span key={j}>{part}</span>
-                  )}
-                </div>
-                {msg.suggestions?.length > 0 && (
-                  <div className="chat-suggestions">
-                    {msg.suggestions.map((s, j) => (
-                      <button key={j} id={`sug-${i}-${j}`} name={`sug-${i}-${j}`}
-                        className="chat-suggestion-chip" type="button"
-                        onClick={() => handleQuery(s)}>{s}</button>
-                    ))}
-                  </div>
-                )}
-                <div className="msg-time">{msg.time}</div>
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="msg ai">
-              <div className="msg-avatar">✨</div>
-              <div className="msg-bubble"><div className="typing"><span /><span /><span /></div></div>
-            </div>
-          )}
-          <div ref={msgEndRef} />
-        </div>
+        <ChatMessages
+          messages={messages}
+          loading={loading}
+          loadingStage={
+            activeView === "deepdive"
+              ? "Computing KPIs, segment trends, anomalies & 10-section research report..."
+              : undefined
+          }
+          onSelectSuggestion={handleQuery}
+          onJumpToSection={deepDiveData ? jumpToDeepDiveSection : undefined}
+          messagesEndRef={msgEndRef as React.RefObject<HTMLDivElement>}
+        />
 
-        {/* Quick Actions */}
         <div className="chat-actions">
-          <button id="act-deepdive" name="act-deepdive" className={`chat-action-btn ${activeView === "deepdive" ? "active" : ""}`}
-            type="button" onClick={runDeepDive} disabled={loading}>🔬 Deep Dive</button>
-          <button id="act-whatif" name="act-whatif" className={`chat-action-btn ${activeView === "whatif" ? "active" : ""}`}
-            type="button" onClick={() => { setActiveView("whatif"); setViewData(null); }} disabled={loading}>🎯 What-If</button>
-          <button id="act-anomalies" name="act-anomalies" className={`chat-action-btn ${activeView === "anomalies" ? "active" : ""}`}
-            type="button" onClick={runAnomalies} disabled={loading}>🔍 Anomalies</button>
+          <button
+            type="button"
+            className={`chat-action-btn ${activeView === "deepdive" ? "active" : ""}`}
+            onClick={() => runDeepDive(false)}
+            disabled={loading}
+          >
+            🔬 Deep Dive
+          </button>
+          <button
+            type="button"
+            className={`chat-action-btn ${activeView === "whatif" ? "active" : ""}`}
+            onClick={() => setActiveView("whatif")}
+            disabled={loading}
+          >
+            🎯 What-If
+          </button>
+          <button
+            type="button"
+            className={`chat-action-btn ${activeView === "anomalies" ? "active" : ""}`}
+            onClick={runAnomaliesScan}
+            disabled={loading}
+          >
+            🔍 Anomalies
+          </button>
+          <button
+            type="button"
+            className={`chat-action-btn ${activeView === "reports" ? "active" : ""}`}
+            onClick={() => setActiveView("reports")}
+            disabled={loading}
+          >
+            📊 Reports
+          </button>
         </div>
 
-        {/* Input */}
-        <div className="chat-input-area">
-          <form id="chat-form" name="chat-form" onSubmit={e => { e.preventDefault(); handleQuery(); }}
-            autoComplete="off" style={{ display: "contents" }}>
-            <div className="chat-input-wrap">
-              <input id="chat-input" name="chat-input" className="chat-input" type="text"
-                value={input} onChange={e => setInput(e.target.value)}
-                placeholder="Ask about your data..."
-                disabled={loading} autoComplete="off" aria-label="Chat input" />
-              <button id="chat-send" name="chat-send" className="chat-send-btn" type="submit"
-                disabled={loading || !input.trim()}>→</button>
-            </div>
-          </form>
-        </div>
+        {/* Multiline Composer with Integrated Voice & Read-Aloud */}
+        <ChatInput
+          onSend={handleQuery}
+          loading={loading}
+          lastAiText={messages.slice().reverse().find((m) => m.role === "ai")?.text}
+        />
       </div>
 
       {/* ━━━ RIGHT: RESULTS PANEL ━━━ */}
       <div className="results-panel">
-        <div className="results-topbar">
-          <div className="results-topbar-left">
-            <h2>
-              {activeView === "query" && "Query Results"}
-              {activeView === "deepdive" && "Deep Dive Analysis"}
-              {activeView === "whatif" && "What-If Scenario"}
-              {activeView === "anomalies" && "Anomaly Detection"}
-              {activeView === "upload" && "Dataset Profile"}
-              {activeView === "welcome" && "Dashboard"}
-            </h2>
+        <div className="results-topbar" style={{ flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setChatCollapsed((c) => !c)}
+              title={chatCollapsed ? "Expand AI Assistant" : "Collapse AI Assistant"}
+              style={{ padding: "5px 9px", fontSize: 12 }}
+              aria-label="Toggle AI Assistant sidebar"
+            >
+              {chatCollapsed ? "☰ AI Chat" : "◧"}
+            </button>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.7px", textTransform: "uppercase", fontWeight: 700 }}>
+                INSLIGHT / {activeView === "admin" || activeView === "notifications" ? "Operations" : activeView === "reports" || activeView === "presentations" ? "Reporting" : "Intelligence"}
+              </div>
+              <h2 style={{ margin: 0 }}>
+                {activeView === "query" && "AI Business Query & Insights"}
+                {activeView === "rca" && "Root Cause Analysis (RCA)"}
+                {activeView === "forecast" && "Predictive Forecasting"}
+                {activeView === "alerts" && "Intelligent Business Alerts"}
+                {activeView === "quality" && "Data Quality Assistant"}
+                {activeView === "compare" && "Comparative Analytics"}
+                {activeView === "studio" && "AI Dashboard Studio"}
+                {activeView === "relationships" && "Multi-Dataset Relational Links"}
+                {activeView === "deepdive" && "Deep Dive Analysis"}
+                {activeView === "whatif" && "What-If Scenario Simulator"}
+                {activeView === "anomalies" && "Anomaly Detection Feed"}
+                {activeView === "upload" && "Dataset Schema & Quality"}
+                {activeView === "reports" && "Business Reports & Automation"}
+                {activeView === "presentations" && "AI PowerPoint Studio"}
+                {activeView === "notifications" && "Notification Center"}
+                {activeView === "admin" && "Administration & Audit Logs"}
+                {activeView === "welcome" && "Executive Command Center"}
+              </h2>
+            </div>
             <span className="results-badge">
-              {activeView === "welcome" ? "READY" : activeView === "whatif" ? "SIMULATE" : "LIVE"}
+              {activeView === "welcome" ? "READY" : activeView === "whatif" ? "SIMULATION" : "ACTIVE"}
             </span>
           </div>
-          <div className="results-topbar-right">
-            {health?.columns && <span className="results-chip">📐 {health.columns.length} cols</span>}
-            {rowCount > 0 && <span className="results-chip">📊 {rowCount.toLocaleString()}</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {rowCount > 0 && (
+              <span className="results-chip">
+                📊 {datasetName || "Dataset"} ({rowCount.toLocaleString()} rows)
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={fetchNotifications}
+              className="results-chip"
+              style={{ cursor: "pointer", borderColor: unreadNotifCount > 0 ? "rgba(99, 102, 241, 0.45)" : undefined }}
+              title="Open Notification Center"
+            >
+              🔔 {unreadNotifCount > 0 ? `${unreadNotifCount} unread` : "Inbox"}
+            </button>
+            {currentUser && (
+              <span className="results-chip">
+                👤 {currentUser.name}
+                {currentUser.role && (
+                  <span style={{ fontSize: 9, fontWeight: 800, color: currentUser.role === "admin" ? "#a5b4fc" : "#34d399", textTransform: "uppercase" }}>
+                    {currentUser.role}
+                  </span>
+                )}
+              </span>
+            )}
           </div>
         </div>
 
+        {/* Phase 3 Sub-Navigation Pills */}
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            overflowX: "auto",
+            padding: "8px 16px",
+            background: "rgba(15, 23, 42, 0.75)",
+            borderBottom: "1px solid #1F2937",
+            alignItems: "center"
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setActiveView("query")}
+            className={`chat-action-btn ${activeView === "query" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            💬 Query
+          </button>
+          <button
+            type="button"
+            onClick={runRCA}
+            className={`chat-action-btn ${activeView === "rca" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            🔬 Root Cause
+          </button>
+          <button
+            type="button"
+            onClick={() => runForecast(30, "auto")}
+            className={`chat-action-btn ${activeView === "forecast" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            📈 Forecast
+          </button>
+          <button
+            type="button"
+            onClick={fetchAlerts}
+            className={`chat-action-btn ${activeView === "alerts" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            🔔 Alerts
+          </button>
+          <button
+            type="button"
+            onClick={runQualityAudit}
+            className={`chat-action-btn ${activeView === "quality" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            🛡️ Quality
+          </button>
+          <button
+            type="button"
+            onClick={() => runComparison("period")}
+            className={`chat-action-btn ${activeView === "compare" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            ⚖️ Benchmark
+          </button>
+          <button
+            type="button"
+            onClick={fetchSavedDashboards}
+            className={`chat-action-btn ${activeView === "studio" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            📊 Studio
+          </button>
+          <button
+            type="button"
+            onClick={fetchRelationships}
+            className={`chat-action-btn ${activeView === "relationships" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            🔗 Multi-Dataset
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveView("reports")}
+            className={`chat-action-btn ${activeView === "reports" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            📄 Reports
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveView("whatif")}
+            className={`chat-action-btn ${activeView === "whatif" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            🎯 What-If
+          </button>
+          <button
+            type="button"
+            onClick={fetchPresentations}
+            className={`chat-action-btn ${activeView === "presentations" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            📽️ Slides
+          </button>
+          <button
+            type="button"
+            onClick={fetchNotifications}
+            className={`chat-action-btn ${activeView === "notifications" ? "active" : ""}`}
+            style={{ fontSize: 11, padding: "5px 10px" }}
+          >
+            🔔 Inbox{unreadNotifCount > 0 ? ` (${unreadNotifCount})` : ""}
+          </button>
+          {currentUser?.role === "admin" && (
+            <button
+              type="button"
+              onClick={fetchAdminData}
+              className={`chat-action-btn ${activeView === "admin" ? "active" : ""}`}
+              style={{ fontSize: 11, padding: "5px 10px" }}
+            >
+              🛡️ Admin
+            </button>
+          )}
+        </div>
+
         <div className="results-content">
-          {/* ── WELCOME ── */}
+          {/* Welcome Command Center */}
           {activeView === "welcome" && !loading && (
-            <div className="welcome-results fade-in">
-              <div className="icon">🚀</div>
-              <h3>Your AI Dashboard</h3>
-              <p>Ask questions in the chat, run Deep Dive, What-If simulations, or detect anomalies. Results appear here instantly.</p>
-            </div>
-          )}
-
-          {/* ── LOADING ── */}
-          {loading && <Loading text={
-            activeView === "deepdive" ? "Running deep analysis..." :
-            activeView === "anomalies" ? "Scanning for anomalies..." :
-            activeView === "whatif" ? "Simulating scenario..." :
-            activeView === "upload" ? "Processing dataset..." :
-            "Generating insights..."
-          } />}
-
-          {/* ── QUERY RESULTS ── */}
-          {activeView === "query" && viewData && !viewData.error && !loading && (
-            <div className="slide-up">
-              {viewData.kpi_cards?.length > 0 && (
-                <div className="kpi-grid">
-                  {viewData.kpi_cards.map((kpi, i) => {
-                    const { i: icon, c: cls } = kpiIcon(kpi.label);
-                    return (
-                      <div className="kpi-card" key={i}>
-                        <div className="kpi-header"><div className="kpi-label">{kpi.label}</div><div className={`kpi-icon ${cls}`}>{icon}</div></div>
-                        <div className="kpi-value">{kpi.value}</div>
-                        {kpi.trend && <span className={`kpi-trend ${kpi.trend_direction || "neutral"}`}>{kpi.trend_direction === "up" ? "↑" : "↓"} {kpi.trend}</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {viewData.narrative && <div className="narrative">{viewData.narrative}</div>}
-              <div className={`chart-grid ${!viewData.secondary_chart ? "single" : ""}`}>
-                {viewData.main_chart && <ChartRenderer config={viewData.main_chart} />}
-                {viewData.secondary_chart && <ChartRenderer config={viewData.secondary_chart} />}
-              </div>
-              {viewData.main_chart?.data && <DataTable data={viewData.main_chart.data} title="Data" />}
-              {viewData.sql_query && (
-                <div>
-                  <button id="btn-sql" name="btn-sql" className="btn btn-ghost" type="button" onClick={() => setShowSql(!showSql)}>{showSql ? "▾ Hide" : "▸ Show"} SQL</button>
-                  {showSql && <div className="sql-block">{viewData.sql_query}</div>}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── QUERY ERROR ── */}
-          {activeView === "query" && viewData?.error && !loading && (
-            <div className="error-box fade-in"><span>⚠️</span><div><strong>{viewData.error}</strong>{viewData.suggestion && <p style={{ marginTop: 4, opacity: .8, fontSize: 12 }}>{viewData.suggestion}</p>}</div></div>
-          )}
-
-          {/* ── DEEP DIVE ── */}
-          {activeView === "deepdive" && viewData && !viewData.error && !loading && (
-            <div className="slide-up">
-              {viewData.root_cause_analysis && <div className="narrative">{viewData.root_cause_analysis}</div>}
-              {viewData.monthly_trend && <LineChart data={viewData.monthly_trend} xKey="month" yKey="total_revenue" title="Monthly Revenue Trend" />}
-              {viewData.revenue_by_category && (
-                <div className="chart-grid">
-                  <BarChart data={viewData.revenue_by_category} xKey="product_category" yKey="total_revenue" title="Revenue by Category" />
-                  <PieChart data={viewData.revenue_by_category} xKey="product_category" yKey="total_revenue" title="Revenue Share" />
-                </div>
-              )}
-              {viewData.recommendations?.length > 0 && (
-                <div className="card">
-                  <div className="card-title">Recommendations</div>
-                  {viewData.recommendations.map((r, i) => (
-                    <div key={i} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)", display: "flex", gap: 10 }}>
-                      <span style={{ fontSize: 18 }}>{r.priority === "high" ? "🔴" : r.priority === "medium" ? "🟡" : "🟢"}</span>
-                      <div><strong style={{ fontSize: 13.5 }}>{r.action}</strong><p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Expected: {r.expected_impact}</p></div>
+            <div className="view-enter" style={{ maxWidth: 920, margin: "12px auto" }}>
+              <div className="card" style={{ padding: 28, marginBottom: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-light)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>
+                      AI Business Intelligence Command Center
                     </div>
-                  ))}
+                    <h3 style={{ fontSize: 24, fontWeight: 800, color: "#fff", margin: "0 0 8px 0", letterSpacing: "-0.4px" }}>
+                      Welcome{currentUser?.name ? `, ${currentUser.name}` : " to INSLIGHT"}
+                    </h3>
+                    <p style={{ color: "var(--text-secondary)", fontSize: 13.5, lineHeight: 1.65, maxWidth: 600, margin: 0 }}>
+                      {rowCount > 0
+                        ? `Active dataset '${datasetName}' (${rowCount.toLocaleString()} records) is isolated and ready. Ask a broad strategic question or launch any analytical workspace below.`
+                        : "Upload a CSV dataset in the AI Assistant panel to unlock natural-language analytics, ML forecasting, anomaly detection, and automated reporting."}
+                    </p>
+                  </div>
+                  {rowCount === 0 && (
+                    <button type="button" className="btn btn-primary" onClick={() => fileRef.current?.click()}>
+                      📁 Upload CSV Dataset
+                    </button>
+                  )}
                 </div>
-              )}
+
+                {/* One-Click Executive Prompts */}
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 10 }}>
+                    One-Click Executive AI Prompts
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+                    {[
+                      "Analyze my business performance and identify the three biggest opportunities and risks.",
+                      "Show total revenue by region.",
+                      "Forecast revenue for next 30 days.",
+                      "Identify underperforming regions.",
+                    ].map((promptText, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleQuery(promptText)}
+                        className="btn btn-ghost"
+                        style={{
+                          justifyContent: "flex-start",
+                          textAlign: "left",
+                          padding: "10px 12px",
+                          lineHeight: 1.45,
+                          whiteSpace: "normal",
+                          height: "100%",
+                        }}
+                      >
+                        <span style={{ color: "var(--accent-light)" }}>✨</span>
+                        <span>{promptText}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Workspace Launchers */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+                {[
+                  { icon: "🔬", title: "Root Cause Analysis", desc: "Decompose period variance & segment drivers", action: runRCA },
+                  { icon: "📈", title: "ML Forecasting", desc: "Predict revenue with 95% confidence bands", action: () => runForecast(30, "auto") },
+                  { icon: "📽️", title: "AI Slide Deck (.pptx)", desc: "Generate & edit executive PowerPoint decks", action: fetchPresentations },
+                  { icon: "📄", title: "PDF & Excel Reports", desc: "Export boardroom reports & schedule Gmail", action: () => setActiveView("reports") },
+                ].map((w, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={w.action}
+                    className="kpi-card"
+                    style={{ textAlign: "left", cursor: "pointer", border: "1px solid var(--border)" }}
+                  >
+                    <div style={{ fontSize: 22, marginBottom: 8 }}>{w.icon}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#f8fafc", marginBottom: 4 }}>{w.title}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.45 }}>{w.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* ── WHAT-IF CONTROLS + RESULTS ── */}
-          {activeView === "whatif" && !loading && (
-            <div className="slide-up">
-              <div className="whatif-panel">
-                <div className="card-title">Scenario Parameters</div>
-                <form id="whatif-form" name="whatif-form" onSubmit={e => e.preventDefault()}>
-                  <div className="slider-group">
-                    <div className="slider-header"><label className="slider-label" htmlFor="wi-price">💰 Price</label><span className="slider-val">{wiPrice > 0 ? "+" : ""}{wiPrice}%</span></div>
-                    <input id="wi-price" name="wi-price" className="slider-input" type="range" min={-50} max={50} value={wiPrice} onChange={e => setWiPrice(Number(e.target.value))} aria-label="Price" />
-                  </div>
-                  <div className="slider-group">
-                    <div className="slider-header"><label className="slider-label" htmlFor="wi-disc">🏷️ Discount</label><span className="slider-val">{wiDiscount > 0 ? "+" : ""}{wiDiscount}%</span></div>
-                    <input id="wi-disc" name="wi-disc" className="slider-input" type="range" min={-50} max={50} value={wiDiscount} onChange={e => setWiDiscount(Number(e.target.value))} aria-label="Discount" />
-                  </div>
-                  <div className="slider-group">
-                    <div className="slider-header"><label className="slider-label" htmlFor="wi-units">📦 Volume</label><span className="slider-val">{wiUnits > 0 ? "+" : ""}{wiUnits}%</span></div>
-                    <input id="wi-units" name="wi-units" className="slider-input" type="range" min={-50} max={50} value={wiUnits} onChange={e => setWiUnits(Number(e.target.value))} aria-label="Volume" />
-                  </div>
-                  <button id="btn-run-whatif" name="btn-run-whatif" className="btn btn-primary" type="button" onClick={runWhatIf} disabled={loading} style={{ marginTop: 8, width: "100%" }}>
-                    ▶ Run Scenario
-                  </button>
-                </form>
+          {/* Loading Indicator */}
+          {loading && (
+            <div className="view-enter">
+              <Loading
+                text={
+                  activeView === "rca"
+                    ? "Conducting Root Cause Analysis across dimensions..."
+                    : activeView === "forecast"
+                    ? "Training time-series forecasting model..."
+                    : activeView === "alerts"
+                    ? "Evaluating rule-based threshold alerts..."
+                    : activeView === "quality"
+                    ? "Auditing dataset hygiene and quality..."
+                    : activeView === "compare"
+                    ? "Calculating period-over-period variance..."
+                    : activeView === "studio"
+                    ? "Synthesizing dynamic AI dashboard widgets..."
+                    : activeView === "relationships"
+                    ? "Validating multi-dataset candidate keys..."
+                    : activeView === "presentations"
+                    ? "Loading AI PowerPoint Studio..."
+                    : activeView === "notifications"
+                    ? "Loading Notification Center..."
+                    : activeView === "admin"
+                    ? "Loading Administration & Audit Logs..."
+                    : "Synthesizing executive business insights..."
+                }
+              />
+              <div style={{ marginTop: 14 }}>
+                <SkeletonGrid />
               </div>
+            </div>
+          )}
 
-              {viewData && !viewData.error && (
-                <>
-                  <div className="kpi-grid">
-                    <div className="kpi-card"><div className="kpi-header"><div className="kpi-label">Current</div><div className="kpi-icon revenue">💰</div></div><div className="kpi-value">{fmt(viewData.current?.revenue)}</div></div>
-                    <div className="kpi-card"><div className="kpi-header"><div className="kpi-label">Projected</div><div className="kpi-icon revenue">🎯</div></div><div className="kpi-value" style={{ color: viewData.change?.revenue_diff >= 0 ? "var(--green)" : "var(--red)" }}>{fmt(viewData.projected?.revenue)}</div></div>
-                    <div className="kpi-card"><div className="kpi-header"><div className="kpi-label">Impact</div><div className={`kpi-icon ${viewData.change?.revenue_pct_change >= 0 ? "units" : "orders"}`}>{viewData.change?.revenue_pct_change >= 0 ? "📈" : "📉"}</div></div><div className="kpi-value" style={{ color: viewData.change?.revenue_pct_change >= 0 ? "var(--green)" : "var(--red)" }}>{viewData.change?.revenue_pct_change >= 0 ? "+" : ""}{viewData.change?.revenue_pct_change}%</div></div>
+          {/* Query Results */}
+          {activeView === "query" && !loading && (
+            <div>
+              {queryData?.error ? (
+                <div style={{ background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: 10, padding: "18px 20px", marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontSize: 20 }}>⚠️</span>
+                    <h4 style={{ color: "#f87171", margin: 0, fontSize: 15, fontWeight: 700 }}>Query Notice</h4>
                   </div>
-                  {viewData.ai_commentary && <div className="narrative">{viewData.ai_commentary}</div>}
-                  {viewData.monthly_comparison?.length > 0 && <BarChart data={viewData.monthly_comparison} xKey="month" yKey="projected_revenue" title="Projected Monthly Revenue" />}
-                  {viewData.category_impact?.length > 0 && <DataTable data={viewData.category_impact} title="Category Impact" />}
+                  <p style={{ color: "#e5e7eb", margin: "0 0 10px 0", fontSize: 13, lineHeight: 1.6 }}>{queryData.error}</p>
+                  {queryData.available_columns && queryData.available_columns.length > 0 && (
+                    <div style={{ fontSize: 12, color: "#9ca3af", background: "rgba(0,0,0,0.2)", padding: "8px 12px", borderRadius: 6 }}>
+                      <strong>Available dataset columns:</strong> {queryData.available_columns.slice(0, 10).join(", ")}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {!queryData && (
+                <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>💬</div>
+                  <h4 style={{ fontSize: 16, fontWeight: 700, color: "#f3f4f6", marginBottom: 6 }}>No Active Query Results</h4>
+                  <p style={{ fontSize: 13, maxWidth: 420, margin: "0 auto" }}>
+                    Ask a question in the chat panel (e.g. &quot;Analyze my business performance and identify the three biggest opportunities and risks&quot;) to view live results.
+                  </p>
+                </div>
+              )}
+
+              {queryData && !queryData.error && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowExportModal(true)}
+                      style={{
+                        background: "#2563eb",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "6px 14px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      📄 Export Report (PDF/Excel)
+                    </button>
+                  </div>
+
+                  {queryData.kpi_cards?.length > 0 && <KPIGrid cards={queryData.kpi_cards} />}
+
+                  {/* Top 3 Opportunities */}
+                  {queryData.opportunities && queryData.opportunities.length > 0 && (
+                    <div style={{ marginTop: 22, marginBottom: 20 }}>
+                      <h4 style={{ fontSize: 15, fontWeight: 700, color: "#10b981", display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                        <span>🚀</span> Top Commercial Opportunities
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+                        {queryData.opportunities.map((opp: any, idx: number) => (
+                          <div
+                            key={idx}
+                            style={{
+                              background: "rgba(16, 185, 129, 0.05)",
+                              border: "1px solid rgba(16, 185, 129, 0.25)",
+                              borderRadius: 10,
+                              padding: "14px 16px",
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "space-between"
+                            }}
+                          >
+                            <div>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 6, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#10b981", background: "rgba(16, 185, 129, 0.15)", padding: "2px 8px", borderRadius: 12 }}>
+                                  Opportunity #{opp.rank || idx + 1}
+                                </span>
+                                {opp.is_hypothesis && (
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", background: "rgba(251, 191, 36, 0.14)", padding: "2px 7px", borderRadius: 4, textTransform: "uppercase" }}>
+                                    Hypothesis / Requires Validation
+                                  </span>
+                                )}
+                              </div>
+                              <h5 style={{ fontSize: 14, fontWeight: 700, color: "#f3f4f6", margin: "0 0 6px 0" }}>{opp.title}</h5>
+                              <p style={{ fontSize: 12.5, color: "#9ca3af", margin: "0 0 8px 0", lineHeight: 1.5 }}>{opp.business_interpretation || opp.impact}</p>
+                              {opp.supporting_metric && (
+                                <div style={{ fontSize: 11.5, color: "#d1d5db", background: "rgba(0,0,0,0.22)", padding: "7px 9px", borderRadius: 6, marginBottom: 8, lineHeight: 1.45 }}>
+                                  <div><strong>Metric:</strong> {opp.supporting_metric}</div>
+                                  {opp.actual_value && <div><strong>Value:</strong> {opp.actual_value}</div>}
+                                  {opp.evidence_source && <div style={{ color: "#9ca3af", fontSize: 11 }}><strong>Source:</strong> {opp.evidence_source}</div>}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: "#6ee7b7", background: "rgba(16, 185, 129, 0.1)", padding: "6px 10px", borderRadius: 6 }}>
+                              💡 <strong>Action:</strong> {opp.recommendation}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top 3 Risks */}
+                  {queryData.risks && queryData.risks.length > 0 && (
+                    <div style={{ marginTop: 20, marginBottom: 22 }}>
+                      <h4 style={{ fontSize: 15, fontWeight: 700, color: "#f87171", display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                        <span>⚠️</span> Critical Operational & Financial Risks
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+                        {queryData.risks.map((risk: any, idx: number) => (
+                          <div
+                            key={idx}
+                            style={{
+                              background: "rgba(239, 68, 68, 0.05)",
+                              border: "1px solid rgba(239, 68, 68, 0.25)",
+                              borderRadius: 10,
+                              padding: "14px 16px",
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "space-between"
+                            }}
+                          >
+                            <div>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#f87171", background: "rgba(239, 68, 68, 0.15)", padding: "2px 8px", borderRadius: 12 }}>
+                                  Risk #{risk.rank || idx + 1}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    color: risk.severity === "critical" ? "#ef4444" : risk.severity === "warning" ? "#f59e0b" : "#3b82f6",
+                                    background: "rgba(255,255,255,0.06)",
+                                    padding: "2px 6px",
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  {risk.severity || "warning"}
+                                </span>
+                              </div>
+                              <h5 style={{ fontSize: 14, fontWeight: 700, color: "#f3f4f6", margin: "0 0 6px 0" }}>{risk.title}</h5>
+                              <p style={{ fontSize: 12.5, color: "#9ca3af", margin: "0 0 8px 0", lineHeight: 1.5 }}>{risk.business_interpretation || risk.impact}</p>
+                              {risk.supporting_metric && (
+                                <div style={{ fontSize: 11.5, color: "#d1d5db", background: "rgba(0,0,0,0.22)", padding: "7px 9px", borderRadius: 6, marginBottom: 8, lineHeight: 1.45 }}>
+                                  <div><strong>Metric:</strong> {risk.supporting_metric}</div>
+                                  {risk.actual_value && <div><strong>Value:</strong> {risk.actual_value}</div>}
+                                  {risk.evidence_source && <div style={{ color: "#9ca3af", fontSize: 11 }}><strong>Source:</strong> {risk.evidence_source}</div>}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: "#fca5a5", background: "rgba(239, 68, 68, 0.1)", padding: "6px 10px", borderRadius: 6 }}>
+                              🛡️ <strong>Mitigation:</strong> {risk.mitigation}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {queryData.narrative && (
+                    <div className="narrative" style={{ lineHeight: 1.6, marginBottom: 18 }}>
+                      <MarkdownRenderer content={queryData.narrative} />
+                    </div>
+                  )}
+
+                  {(queryData.main_chart || queryData.secondary_chart) && (
+                    <div className={`chart-grid ${!queryData.secondary_chart ? "single" : ""}`}>
+                      {queryData.main_chart && <ChartRenderer config={queryData.main_chart} />}
+                      {queryData.secondary_chart && <ChartRenderer config={queryData.secondary_chart} />}
+                    </div>
+                  )}
+
+                  {queryData.supporting_table?.rows?.length ? (
+                    <DataTable data={queryData.supporting_table.rows} title={queryData.supporting_table.title || "Supporting Financial Evidence"} />
+                  ) : queryData.main_chart?.data?.length ? (
+                    <DataTable data={queryData.main_chart.data} title="Query Records" />
+                  ) : null}
+
+                  {queryData.sql_query && (
+                    <div style={{ marginTop: 14 }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => setShowSql(!showSql)}
+                      >
+                        {showSql ? "▾ Hide SQL Query" : "▸ Show Generated SQL"}
+                      </button>
+                      {showSql && <div className="sql-block">{queryData.sql_query}</div>}
+                    </div>
+                  )}
                 </>
               )}
             </div>
           )}
 
-          {/* ── ANOMALIES ── */}
-          {activeView === "anomalies" && viewData && !loading && (
-            <div className="slide-up">
-              <div className="kpi-grid" style={{ marginBottom: 20 }}>
-                <div className="kpi-card">
-                  <div className="kpi-header"><div className="kpi-label">Found</div><div className={`kpi-icon ${viewData.count > 0 ? "rating" : "units"}`}>{viewData.count > 0 ? "⚠️" : "✅"}</div></div>
-                  <div className="kpi-value" style={{ color: viewData.count > 0 ? "var(--amber)" : "var(--green)" }}>{viewData.count}</div>
-                </div>
-              </div>
-              {viewData.ai_analysis?.map((a, i) => (
-                <div className={`anomaly-card ${a.severity}`} key={i}>
-                  <div className="anomaly-metric">{a.severity === "high" ? "🔴" : a.severity === "medium" ? "🟡" : "🟢"} {a.metric}</div>
-                  <div className="anomaly-desc">{a.description}</div>
-                  <div className="anomaly-action">💡 {a.suggestion}</div>
-                </div>
-              ))}
-              {viewData.count === 0 && (
-                <div className="card" style={{ textAlign: "center", padding: 36 }}>
-                  <div style={{ fontSize: 44, marginBottom: 10 }}>✅</div>
-                  <h3 style={{ fontSize: 16, marginBottom: 4 }}>All Clear</h3>
-                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>No anomalies detected.</p>
-                </div>
-              )}
+          {/* Phase 3: Root Cause Analysis */}
+          {activeView === "rca" && !loading && (
+            <RootCausePanel data={rcaData} loading={loading} onRefresh={runRCA} />
+          )}
+
+          {/* Phase 3: Forecasting */}
+          {activeView === "forecast" && !loading && (
+            <ForecastingPanel data={forecastData} loading={loading} onRunForecast={runForecast} />
+          )}
+
+          {/* Phase 3: Alerts */}
+          {activeView === "alerts" && !loading && (
+            <AlertsPanel
+              alerts={alerts}
+              rules={alertRules}
+              loading={loading}
+              onScanAlerts={scanAlerts}
+              onMarkRead={markAlertRead}
+              onResolve={resolveAlert}
+              onCreateRule={createAlertRule}
+            />
+          )}
+
+          {/* Phase 3: Data Quality */}
+          {activeView === "quality" && !loading && (
+            <DataQualityPanel
+              report={qualityReport}
+              loading={loading}
+              onRunAudit={runQualityAudit}
+              onPreviewCleaned={previewCleaned}
+              cleanedPreview={cleanedPreview}
+            />
+          )}
+
+          {/* Phase 3: Comparative Analytics */}
+          {activeView === "compare" && !loading && (
+            <ComparisonPanel data={comparisonData} loading={loading} onRunComparison={runComparison} />
+          )}
+
+          {/* Phase 3: Dashboard Studio */}
+          {activeView === "studio" && !loading && (
+            <DashboardStudio
+              currentDashboard={currentDashboard}
+              savedDashboards={savedDashboards}
+              loading={loading}
+              onGenerateFromPrompt={generateDashboard}
+              onSaveDashboard={saveDashboard}
+              onOpenDashboard={(d) => setCurrentDashboard(JSON.parse(d.layout_config))}
+              onDeleteDashboard={deleteDashboard}
+            />
+          )}
+
+          {/* Phase 3: Multi-Dataset Relationships */}
+          {activeView === "relationships" && !loading && (
+            <RelationshipsPanel
+              relationships={relationships}
+              datasets={userDatasets}
+              loading={loading}
+              onRefresh={fetchRelationships}
+              onDetectCandidates={detectRelationshipCandidates}
+              onValidateRelationship={validateRelationship}
+              onPreviewJoin={previewRelationshipJoin}
+              onSaveRelationship={saveRelationship}
+              onDeleteRelationship={deleteRelationship}
+            />
+          )}
+
+          {/* Deep Dive */}
+          {activeView === "deepdive" && !loading && (
+            <DeepDiveView
+              data={deepDiveData}
+              highlightedSection={highlightedSection}
+              onRefresh={() => runDeepDive(true)}
+              onExportPdf={() => setShowExportModal(true)}
+              onAskFollowUp={handleQuery}
+            />
+          )}
+
+          {/* What-If */}
+          {activeView === "whatif" && !loading && (
+            <WhatIfPanel
+              data={whatIfData}
+              loading={loading}
+              onRunSimulation={runWhatIfSimulation}
+            />
+          )}
+
+          {/* Anomalies */}
+          {activeView === "anomalies" && !loading && <AnomaliesPanel data={anomalyData} />}
+
+          {/* Dataset Profile */}
+          {activeView === "upload" && !loading && <DatasetProfileView profile={profileData} />}
+
+          {/* Phase 4: Notifications */}
+          {activeView === "notifications" && !loading && (
+            <NotificationsPanel
+              notifications={notifications}
+              loading={loading}
+              onRefresh={fetchNotifications}
+              onMarkRead={markNotifRead}
+              onMarkAllRead={markAllNotifsRead}
+              onDelete={deleteNotif}
+            />
+          )}
+
+          {/* Phase 4: AI PowerPoint Studio */}
+          {activeView === "presentations" && !loading && (
+            <PresentationStudio
+              presentations={presentations}
+              onRefresh={() => {
+                fetchPresentations();
+                refreshUnreadCount();
+              }}
+              onNotifyUser={(msg) => addAiMessage(msg)}
+            />
+          )}
+
+          {/* Phase 4: Admin RBAC & Audit Logs */}
+          {activeView === "admin" && !loading && (
+            <AdminPanel
+              currentUser={currentUser}
+              users={adminUsers}
+              auditLogs={adminAuditLogs}
+              systemStatus={adminSystemStatus}
+              onRefresh={fetchAdminData}
+            />
+          )}
+
+          {/* Business Reports & Schedules */}
+          {activeView === "reports" && !loading && <ReportsView />}
+
+          {queryData?.sql_query && activeView === "query" && showSql && (
+            <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  navigator.clipboard?.writeText(queryData.sql_query || "");
+                  showToast("✓ SQL query copied to clipboard");
+                }}
+              >
+                📋 Copy SQL
+              </button>
             </div>
           )}
 
-          {/* ── UPLOAD PROFILE ── */}
-          {activeView === "upload" && viewData && !loading && (
-            <div className="slide-up">
-              <div className="card">
-                <div className="card-title">Dataset Profile</div>
-                <div className="profile-grid">
-                  <div className="profile-stat"><div className="profile-stat-value">{viewData.rows?.toLocaleString()}</div><div className="profile-stat-label">Rows</div></div>
-                  <div className="profile-stat"><div className="profile-stat-value">{viewData.columns}</div><div className="profile-stat-label">Columns</div></div>
-                  <div className="profile-stat"><div className="profile-stat-value">{viewData.data_quality_score}%</div><div className="profile-stat-label">Quality</div></div>
-                </div>
-              </div>
-              {viewData.column_info && (
-                <DataTable data={viewData.column_info.map(c => ({ Column: c.name, Type: c.semantic_type, Unique: c.unique_count, Nulls: c.null_count, Samples: c.sample_values?.slice(0, 3).join(", ") }))} title="Columns" />
-              )}
-            </div>
-          )}
+          {/* Export Query Result Modal */}
+          <ReportModal
+            isOpen={showExportModal}
+            onClose={() => setShowExportModal(false)}
+            title="Business Intelligence Query Export"
+            customQueryData={{
+              table_data: queryData?.main_chart?.data || [],
+              kpi_cards: queryData?.kpi_cards || [],
+              narrative: queryData?.narrative || "",
+            }}
+          />
         </div>
       </div>
+      {toastMsg && <div className="toast-banner" role="status">{toastMsg}</div>}
     </div>
   );
 }
